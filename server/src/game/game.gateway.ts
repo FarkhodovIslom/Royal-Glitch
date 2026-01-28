@@ -187,11 +187,19 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
         targetCardCount: targetPlayer?.hand.length || 0,
       });
 
-      // Send updated hand to drawer
+      // Send updated hands to both drawer and target
       if (drawerPlayer) {
         const drawerSocket = this.server.sockets.sockets.get(drawerPlayer.socketId);
         if (drawerSocket) {
           drawerSocket.emit('hand_dealt', { cards: drawerPlayer.hand });
+        }
+      }
+
+      // Also send updated hand to target player who lost a card
+      if (targetPlayer) {
+        const targetSocket = this.server.sockets.sockets.get(targetPlayer.socketId);
+        if (targetSocket) {
+          targetSocket.emit('hand_dealt', { cards: targetPlayer.hand });
         }
       }
     }
@@ -203,15 +211,13 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     // Round over - someone is stuck with The Glitch
     if (result.roundOver) {
-      this.server.to(room.id).emit('round_over', {
-        loserId: result.loserId,
-        glitchCard: result.glitchCard,
-        standings: result.standings,
-      });
-
+      // In Pair Annihilation, when a round is over, the game is also over
+      // Only emit game_over to prevent duplicate state updates
       this.server.to(room.id).emit('game_over', {
         finalWinnerId: room.players.find(p => !p.isEliminated)?.id || '',
         finalStandings: result.standings,
+        loserId: result.loserId,
+        glitchCard: result.glitchCard,
       });
 
       console.log(`[GAME OVER] Room ${room.id} - Loser: ${result.loserId}`);

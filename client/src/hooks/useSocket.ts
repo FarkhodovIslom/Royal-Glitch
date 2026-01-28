@@ -108,11 +108,6 @@ export function useSocket() {
          useGameStore.getState().updatePlayerCardCount(playerId, 0);
       });
 
-      socket.on('round_over', ({ loserId, glitchCard, standings }) => {
-         console.log('Round over, loser:', loserId);
-         useGameStore.getState().setEliminated(loserId);
-      });
-
       socket.on('game_started', ({ phase }: { phase: Phase }) => {
         console.log('Game started, phase:', phase);
         useGameStore.getState().setPhase(phase);
@@ -141,13 +136,24 @@ export function useSocket() {
         console.log('Player eliminated:', playerId, 'Placement:', placement);
       });
 
-      socket.on('game_over', ({ finalWinnerId, finalStandings }: { finalWinnerId: string; finalStandings: PlayerStanding[] }) => {
+      socket.on('game_over', ({ finalWinnerId, finalStandings, loserId, glitchCard }: { 
+        finalWinnerId: string; 
+        finalStandings: PlayerStanding[];
+        loserId?: string;
+        glitchCard?: Card;
+      }) => {
         // Guard: Only process if game is not already over
         if (useGameStore.getState().isGameOver) {
           console.log('Game already over, ignoring duplicate game_over event');
           return;
         }
-        console.log('Game over! Winner:', finalWinnerId);
+        console.log('Game over! Winner:', finalWinnerId, 'Loser:', loserId);
+        
+        // Mark the loser as eliminated if provided
+        if (loserId) {
+          useGameStore.getState().setEliminated(loserId);
+        }
+        
         useGameStore.getState().setGameOver(finalWinnerId, finalStandings);
       });
 

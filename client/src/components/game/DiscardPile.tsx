@@ -34,7 +34,7 @@ export function DiscardPile({ discardedPairs, maxVisible = 4 }: DiscardPileProps
                 <AnimatePresence>
                     {recentPairs.map((pair, index) => (
                         <motion.div
-                            key={pair.timestamp}
+                            key={`${pair.playerId}-${pair.timestamp}-${index}`}
                             className="absolute inset-0 flex items-center justify-center"
                             style={{
                                 zIndex: maxVisible - index,

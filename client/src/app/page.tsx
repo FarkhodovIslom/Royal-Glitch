@@ -18,13 +18,6 @@ function GlitchLogo() {
                     WebkitTextFillColor: 'transparent',
                     filter: 'drop-shadow(0 0 20px rgba(0, 255, 240, 0.5))',
                 }}
-                animate={{
-                    textShadow: [
-                        '0 0 20px #00FFF0',
-                        '3px 0 30px #FF00FF, -3px 0 30px #00FFF0',
-                        '0 0 20px #00FFF0',
-                    ],
-                }}
                 transition={{ repeat: Infinity, duration: 2 }}
             >
                 ROYAL

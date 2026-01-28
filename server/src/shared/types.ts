@@ -131,7 +131,9 @@ export interface ServerToClientEvents {
   
   game_over: (data: { 
     finalWinnerId: string; 
-    finalStandings: PlayerStanding[] 
+    finalStandings: PlayerStanding[];
+    loserId?: string;     // Who held The Glitch (optional for compatibility)
+    glitchCard?: Card;    // The Glitch card (optional for compatibility)
   }) => void;
   
   mask_emotion: (data: { playerId: string; emotion: MaskEmotion }) => void;
