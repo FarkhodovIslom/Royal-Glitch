@@ -1,0 +1,690 @@
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;700;900&family=Space+Mono:wght@400;700&family=Press+Start+2P&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================
+   ROYAL GLITCH - SYNTHWAVE CYBERPUNK THEME
+   ============================================ */
+
+:root {
+  /* Neon Colors */
+  --neon-cyan: #00FFF0;
+  --neon-pink: #FF00FF;
+  --neon-purple: #BD00FF;
+  --neon-blue: #0066FF;
+
+  /* Dark Colors */
+  --dark-bg: #050508;
+  --dark-panel: #0A0A14;
+  --dark-circuit: #121224;
+
+  /* Glitch Colors */
+  --glitch-yellow: #FFD700;
+  --glitch-red: #FF3333;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+}
+
+body {
+  font-family: 'Space Mono', 'Roboto Mono', monospace;
+  background: var(--dark-bg);
+  color: #fff;
+  min-height: 100vh;
+}
+
+/* ============================================
+   CIRCUIT BOARD BACKGROUND
+   ============================================ */
+
+.bg-cyber {
+  background:
+    /* Scanlines overlay */
+    repeating-linear-gradient(0deg,
+      transparent,
+      transparent 2px,
+      rgba(0, 255, 240, 0.03) 2px,
+      rgba(0, 255, 240, 0.03) 4px),
+    /* Circuit pattern */
+    url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg stroke='%2300FFF0' stroke-opacity='0.08' stroke-width='1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E"),
+    /* Base gradient */
+    radial-gradient(ellipse at 50% 0%, rgba(0, 255, 240, 0.1) 0%, transparent 50%),
+    linear-gradient(180deg, var(--dark-bg) 0%, var(--dark-circuit) 50%, var(--dark-bg) 100%);
+}
+
+/* Hex grid for game table */
+.bg-hex-grid {
+  background:
+    url("data:image/svg+xml,%3Csvg width='50' height='43' viewBox='0 0 50 43' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cpolygon stroke='%2300FFF0' stroke-opacity='0.15' points='25 0 50 14.5 50 28.5 25 43 0 28.5 0 14.5'/%3E%3C/g%3E%3C/svg%3E"),
+    radial-gradient(circle at 50% 50%, rgba(189, 0, 255, 0.1) 0%, transparent 60%),
+    var(--dark-panel);
+}
+
+/* ============================================
+   DATA RAIN EFFECT
+   ============================================ */
+
+.data-rain {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 0;
+}
+
+.data-rain::before {
+  content: '';
+  position: absolute;
+  top: -100%;
+  left: 0;
+  right: 0;
+  height: 200%;
+  background:
+    repeating-linear-gradient(0deg,
+      transparent 0%,
+      transparent 50%,
+      rgba(0, 255, 240, 0.03) 50.5%,
+      transparent 51%);
+  background-size: 100px 100px;
+  animation: data-rain 20s linear infinite;
+}
+
+@keyframes data-rain {
+  0% {
+    transform: translateY(0);
+  }
+
+  100% {
+    transform: translateY(50%);
+  }
+}
+
+/* ============================================
+   SCANLINES OVERLAY
+   ============================================ */
+
+.scanlines::after {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(0deg,
+      rgba(0, 0, 0, 0.1) 0px,
+      rgba(0, 0, 0, 0.1) 1px,
+      transparent 1px,
+      transparent 2px);
+  z-index: 9999;
+}
+
+/* ============================================
+   GLITCH TEXT EFFECTS
+   ============================================ */
+
+.glitch-text {
+  position: relative;
+  animation: glitch-loop 3s infinite;
+}
+
+.glitch-text::before,
+.glitch-text::after {
+  content: attr(data-text);
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.glitch-text::before {
+  animation: glitch-1 0.3s infinite linear alternate-reverse;
+  clip-path: polygon(0 0, 100% 0, 100% 35%, 0 35%);
+  color: var(--neon-cyan);
+  left: 2px;
+}
+
+.glitch-text::after {
+  animation: glitch-2 0.3s infinite linear alternate-reverse;
+  clip-path: polygon(0 65%, 100% 65%, 100% 100%, 0 100%);
+  color: var(--neon-pink);
+  left: -2px;
+}
+
+@keyframes glitch-1 {
+  0% {
+    transform: translate(0);
+  }
+
+  20% {
+    transform: translate(-2px, 2px);
+  }
+
+  40% {
+    transform: translate(-2px, -2px);
+  }
+
+  60% {
+    transform: translate(2px, 2px);
+  }
+
+  80% {
+    transform: translate(2px, -2px);
+  }
+
+  100% {
+    transform: translate(0);
+  }
+}
+
+@keyframes glitch-2 {
+  0% {
+    transform: translate(0);
+  }
+
+  20% {
+    transform: translate(2px, -2px);
+  }
+
+  40% {
+    transform: translate(2px, 2px);
+  }
+
+  60% {
+    transform: translate(-2px, -2px);
+  }
+
+  80% {
+    transform: translate(-2px, 2px);
+  }
+
+  100% {
+    transform: translate(0);
+  }
+}
+
+/* Chromatic aberration on hover */
+.chromatic-hover:hover {
+  animation: chromatic 0.2s ease-in-out;
+  text-shadow: -2px 0 var(--neon-pink), 2px 0 var(--neon-cyan);
+}
+
+@keyframes chromatic {
+
+  0%,
+  100% {
+    text-shadow: -2px 0 var(--neon-pink), 2px 0 var(--neon-cyan);
+  }
+
+  25% {
+    text-shadow: 2px 0 var(--neon-pink), -2px 0 var(--neon-cyan);
+  }
+
+  50% {
+    text-shadow: -1px 0 var(--neon-pink), 1px 0 var(--neon-cyan);
+  }
+
+  75% {
+    text-shadow: 1px 0 var(--neon-pink), -1px 0 var(--neon-cyan);
+  }
+}
+
+/* ============================================
+   NEON GLOW EFFECTS
+   ============================================ */
+
+.neon-cyan {
+  color: var(--neon-cyan);
+  text-shadow:
+    0 0 5px var(--neon-cyan),
+    0 0 10px var(--neon-cyan),
+    0 0 20px var(--neon-cyan);
+}
+
+.neon-pink {
+  color: var(--neon-pink);
+  text-shadow:
+    0 0 5px var(--neon-pink),
+    0 0 10px var(--neon-pink),
+    0 0 20px var(--neon-pink);
+}
+
+.neon-purple {
+  color: var(--neon-purple);
+  text-shadow:
+    0 0 5px var(--neon-purple),
+    0 0 10px var(--neon-purple),
+    0 0 20px var(--neon-purple);
+}
+
+/* Box glow */
+.glow-cyan {
+  box-shadow:
+    0 0 5px var(--neon-cyan),
+    0 0 10px var(--neon-cyan),
+    0 0 20px rgba(0, 255, 240, 0.5),
+    inset 0 0 10px rgba(0, 255, 240, 0.1);
+}
+
+.glow-pink {
+  box-shadow:
+    0 0 5px var(--neon-pink),
+    0 0 10px var(--neon-pink),
+    0 0 20px rgba(255, 0, 255, 0.5),
+    inset 0 0 10px rgba(255, 0, 255, 0.1);
+}
+
+/* ============================================
+   CYBER BUTTONS
+   ============================================ */
+
+.btn-cyber {
+  position: relative;
+  padding: 16px 40px;
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 700;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: var(--neon-cyan);
+  background: transparent;
+  border: 2px solid var(--neon-cyan);
+  cursor: pointer;
+  overflow: hidden;
+  transition: all 0.3s ease;
+  clip-path: polygon(0 0,
+      calc(100% - 15px) 0,
+      100% 15px,
+      100% 100%,
+      15px 100%,
+      0 calc(100% - 15px));
+}
+
+.btn-cyber::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg,
+      transparent,
+      rgba(0, 255, 240, 0.4),
+      transparent);
+  transition: left 0.5s ease;
+}
+
+.btn-cyber:hover {
+  background: rgba(0, 255, 240, 0.1);
+  box-shadow:
+    0 0 20px var(--neon-cyan),
+    0 0 40px rgba(0, 255, 240, 0.4),
+    inset 0 0 20px rgba(0, 255, 240, 0.1);
+  text-shadow: 0 0 10px var(--neon-cyan);
+}
+
+.btn-cyber:hover::before {
+  left: 100%;
+}
+
+.btn-cyber-pink {
+  color: var(--neon-pink);
+  border-color: var(--neon-pink);
+}
+
+.btn-cyber-pink:hover {
+  background: rgba(255, 0, 255, 0.1);
+  box-shadow:
+    0 0 20px var(--neon-pink),
+    0 0 40px rgba(255, 0, 255, 0.4),
+    inset 0 0 20px rgba(255, 0, 255, 0.1);
+  text-shadow: 0 0 10px var(--neon-pink);
+}
+
+.btn-cyber-pink::before {
+  background: linear-gradient(90deg,
+      transparent,
+      rgba(255, 0, 255, 0.4),
+      transparent);
+}
+
+/* Filled variant */
+.btn-cyber-filled {
+  background: var(--neon-cyan);
+  color: var(--dark-bg);
+  border: none;
+}
+
+.btn-cyber-filled:hover {
+  background: #33fff4;
+  color: var(--dark-bg);
+}
+
+/* ============================================
+   CYBER PANELS / CARDS
+   ============================================ */
+
+.panel-cyber {
+  background: var(--dark-panel);
+  border: 1px solid rgba(0, 255, 240, 0.3);
+  position: relative;
+  clip-path: polygon(0 10px,
+      10px 0,
+      100% 0,
+      100% calc(100% - 10px),
+      calc(100% - 10px) 100%,
+      0 100%);
+}
+
+.panel-cyber::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--neon-cyan), transparent);
+}
+
+.panel-cyber::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--neon-pink), transparent);
+}
+
+/* ============================================
+   PLAYING CARDS - CYBERPUNK STYLE
+   ============================================ */
+
+.cyber-card {
+  position: relative;
+  width: 80px;
+  height: 112px;
+  background: var(--dark-panel);
+  border: 2px solid var(--neon-cyan);
+  border-radius: 4px;
+  cursor: pointer;
+  transform-style: preserve-3d;
+  transition: all 0.3s ease;
+  overflow: hidden;
+}
+
+.cyber-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(135deg, transparent 40%, rgba(0, 255, 240, 0.05) 50%, transparent 60%),
+    url("data:image/svg+xml,%3Csvg width='20' height='20' viewBox='0 0 20 20' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 10h2v2H0v-2zm4 0h2v2H4v-2zm4 0h2v2H8v-2zm4 0h2v2h-2v-2z' fill='%2300FFF0' fill-opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none;
+}
+
+.cyber-card.playable:hover {
+  transform: translateY(-20px) scale(1.05);
+  border-color: var(--neon-pink);
+  box-shadow:
+    0 0 20px var(--neon-pink),
+    0 0 40px rgba(255, 0, 255, 0.3),
+    5px 5px 0 rgba(255, 0, 255, 0.3),
+    -5px -5px 0 rgba(0, 255, 240, 0.3);
+}
+
+.cyber-card.playable:hover::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(0deg,
+      transparent 0px,
+      transparent 2px,
+      rgba(255, 0, 255, 0.1) 2px,
+      rgba(255, 0, 255, 0.1) 4px);
+  animation: scanline-fast 0.5s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes scanline-fast {
+  0% {
+    transform: translateY(0);
+  }
+
+  100% {
+    transform: translateY(4px);
+  }
+}
+
+/* Card back */
+.cyber-card-back {
+  background:
+    radial-gradient(circle at 50% 50%, rgba(189, 0, 255, 0.3) 0%, transparent 70%),
+    repeating-linear-gradient(45deg,
+      var(--dark-circuit) 0px,
+      var(--dark-circuit) 2px,
+      var(--dark-panel) 2px,
+      var(--dark-panel) 4px);
+  border: 3px solid var(--neon-purple);
+}
+
+/* Suit colors */
+.suit-red {
+  color: var(--neon-pink);
+  text-shadow: 0 0 5px var(--neon-pink), 0 0 10px var(--neon-pink);
+}
+
+.suit-black {
+  color: var(--neon-cyan);
+  text-shadow: 0 0 5px var(--neon-cyan), 0 0 10px var(--neon-cyan);
+}
+
+/* Queen of Spades special effect */
+.queen-of-spades {
+  animation: glitch-loop 2s infinite;
+  border-color: var(--glitch-red) !important;
+  box-shadow: 0 0 10px var(--glitch-red), 0 0 20px rgba(255, 51, 51, 0.5);
+}
+
+/* ============================================
+   INTEGRITY BAR
+   ============================================ */
+
+.integrity-bar {
+  height: 8px;
+  background: var(--dark-circuit);
+  border: 1px solid var(--neon-cyan);
+  position: relative;
+  overflow: hidden;
+}
+
+.integrity-bar::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: repeating-linear-gradient(90deg,
+      transparent 0px,
+      transparent 3px,
+      rgba(0, 0, 0, 0.3) 3px,
+      rgba(0, 0, 0, 0.3) 4px);
+}
+
+.integrity-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--glitch-red), var(--glitch-yellow), var(--neon-cyan));
+  box-shadow: 0 0 10px currentColor;
+  transition: width 0.5s ease;
+}
+
+.integrity-fill.critical {
+  animation: flicker 0.15s infinite;
+}
+
+@keyframes flicker {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.7;
+  }
+}
+
+/* ============================================
+   MASK AVATAR CYBER STYLE
+   ============================================ */
+
+.mask-cyber {
+  border: 2px solid var(--neon-purple);
+  background: radial-gradient(circle at 50% 30%, rgba(189, 0, 255, 0.2) 0%, var(--dark-panel) 70%);
+  box-shadow:
+    0 0 10px var(--neon-purple),
+    inset 0 0 20px rgba(189, 0, 255, 0.1);
+}
+
+.mask-cyber.eliminated {
+  filter: grayscale(1) brightness(0.3);
+  border-color: var(--glitch-red);
+  box-shadow: 0 0 10px var(--glitch-red);
+}
+
+/* ============================================
+   GAME TABLE
+   ============================================ */
+
+.game-table {
+  background:
+    radial-gradient(ellipse at 50% 50%, rgba(189, 0, 255, 0.15) 0%, transparent 50%),
+    url("data:image/svg+xml,%3Csvg width='50' height='43' viewBox='0 0 50 43' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cpolygon stroke='%2300FFF0' stroke-opacity='0.1' points='25 0 50 14.5 50 28.5 25 43 0 28.5 0 14.5'/%3E%3C/g%3E%3C/svg%3E"),
+    var(--dark-panel);
+  border: 2px solid rgba(0, 255, 240, 0.3);
+  position: relative;
+}
+
+.game-table::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 50% 50%, transparent 30%, rgba(0, 0, 0, 0.5) 100%);
+  pointer-events: none;
+}
+
+/* Trick drop zone */
+.trick-zone {
+  background: rgba(0, 255, 240, 0.05);
+  border: 2px dashed rgba(0, 255, 240, 0.3);
+  border-radius: 8px;
+  transition: all 0.3s ease;
+}
+
+.trick-zone.active {
+  background: rgba(189, 0, 255, 0.1);
+  border-color: var(--neon-purple);
+  box-shadow: 0 0 30px rgba(189, 0, 255, 0.3);
+  animation: pulse-neon 2s infinite;
+}
+
+/* ============================================
+   PHASE TRANSITIONS
+   ============================================ */
+
+.phase-overlay {
+  background: rgba(5, 5, 8, 0.95);
+  backdrop-filter: blur(10px);
+}
+
+.phase-title {
+  font-family: 'Orbitron', sans-serif;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.3em;
+  color: var(--neon-cyan);
+  text-shadow:
+    0 0 10px var(--neon-cyan),
+    0 0 20px var(--neon-cyan),
+    0 0 40px var(--neon-cyan),
+    0 0 80px rgba(0, 255, 240, 0.5);
+}
+
+.elimination-text {
+  color: var(--glitch-red);
+  text-shadow:
+    0 0 10px var(--glitch-red),
+    0 0 20px var(--glitch-red),
+    -3px 0 var(--neon-pink),
+    3px 0 var(--neon-cyan);
+  animation: glitch 0.3s infinite;
+}
+
+/* ============================================
+   SCROLLBAR
+   ============================================ */
+
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--dark-bg);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--neon-cyan);
+  box-shadow: 0 0 10px var(--neon-cyan);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--neon-pink);
+  box-shadow: 0 0 10px var(--neon-pink);
+}
+
+/* ============================================
+   UTILITY CLASSES
+   ============================================ */
+
+.clip-cyber {
+  clip-path: polygon(0 10px,
+      10px 0,
+      100% 0,
+      100% calc(100% - 10px),
+      calc(100% - 10px) 100%,
+      0 100%);
+}
+
+.clip-cyber-sm {
+  clip-path: polygon(0 5px,
+      5px 0,
+      100% 0,
+      100% calc(100% - 5px),
+      calc(100% - 5px) 100%,
+      0 100%);
+}
+
+/* Legacy compatibility */
+.btn-gold {
+  @apply btn-cyber-filled;
+}
+
+.btn-outline {
+  @apply btn-cyber;
+}
