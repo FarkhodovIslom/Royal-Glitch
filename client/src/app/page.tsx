@@ -5,41 +5,6 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { Bug, Crown } from 'lucide-react';
 
-// Data rain characters
-const DATA_CHARS = '01アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン';
-
-function DataRain() {
-    const [columns, setColumns] = useState<number[]>([]);
-
-    useEffect(() => {
-        const cols = Math.floor(window.innerWidth / 20);
-        setColumns(Array.from({ length: cols }, () => Math.random() * 100));
-    }, []);
-
-    return (
-        <div className="fixed inset-0 overflow-hidden pointer-events-none z-0 opacity-30">
-            {columns.map((delay, i) => (
-                <motion.div
-                    key={i}
-                    className="absolute top-0 text-neon-cyan text-xs font-mono"
-                    style={{ left: `${i * 20}px` }}
-                    initial={{ y: '-100%' }}
-                    animate={{ y: '100vh' }}
-                    transition={{
-                        duration: 10 + Math.random() * 10,
-                        repeat: Infinity,
-                        delay: delay / 10,
-                        ease: 'linear',
-                    }}
-                >
-                    {Array.from({ length: 30 }, () =>
-                        DATA_CHARS[Math.floor(Math.random() * DATA_CHARS.length)]
-                    ).join('\n')}
-                </motion.div>
-            ))}
-        </div>
-    );
-}
 
 function GlitchLogo() {
     return (
@@ -122,9 +87,6 @@ function GlitchLogo() {
 export default function Home() {
     return (
         <main className="min-h-screen bg-cyber relative overflow-hidden scanlines">
-            {/* Data rain background */}
-            <DataRain />
-
             {/* Ambient glows */}
             <div className="absolute inset-0 overflow-hidden pointer-events-none">
                 <motion.div
