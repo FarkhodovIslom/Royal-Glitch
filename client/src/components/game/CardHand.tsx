@@ -6,21 +6,13 @@ import { Card as CardType } from '@/lib/types';
 
 interface CardHandProps {
     cards: CardType[];
-    validCards: CardType[];
     isMyTurn: boolean;
-
 }
 
 export function CardHand({
     cards,
-    validCards,
     isMyTurn,
 }: CardHandProps) {
-    const isValidCard = (card: CardType) => {
-        return validCards.some(
-            (vc) => vc.suit === card.suit && vc.rank === card.rank
-        );
-    };
 
     // Fan layout calculations - wider spread for classic Hearts look
     const fanAngle = Math.max(2, Math.min(5, 50 / cards.length)); // Adaptive angle
@@ -45,8 +37,7 @@ export function CardHand({
             <div className="flex items-end justify-center relative" style={{ height: '160px' }}>
                 {cards.map((card, index) => {
                     const angle = startAngle + index * fanAngle;
-                    const isValid = isValidCard(card);
-                    const isPlayable = false; // Simplified for Draw mechanic
+                    const isPlayable = false; // Cards are not individually playable in Pair Annihilation
 
                     // Arc positioning - wider spread
                     const xOffset = Math.sin((angle * Math.PI) / 180) * 250;
@@ -108,10 +99,7 @@ export function CardHand({
                                 />
                             )}
 
-                            {/* Invalid card overlay */}
-                            {isMyTurn && !isValid && (
-                                <div className="absolute inset-0 bg-dark-bg/50 rounded pointer-events-none" />
-                            )}
+
                         </motion.div>
                     );
                 })}

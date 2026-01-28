@@ -6,11 +6,11 @@ import clsx from 'clsx';
 interface OpponentHandProps {
     cardCount: number;
     position: 'north' | 'east' | 'west';
-    isCurrentTurn?: boolean;
+    isDrawTarget?: boolean;
     onClick?: () => void;
 }
 
-export function OpponentHand({ cardCount, position, isCurrentTurn = false, onClick }: OpponentHandProps) {
+export function OpponentHand({ cardCount, position, isDrawTarget = false, onClick }: OpponentHandProps) {
     if (cardCount === 0) return null;
 
     const isVertical = position === 'east' || position === 'west';
@@ -33,15 +33,15 @@ export function OpponentHand({ cardCount, position, isCurrentTurn = false, onCli
             )}
             onClick={onClick}
         >
-            {/* Turn indicator glow */}
-            {isCurrentTurn && (
+            {/* Draw target indicator glow */}
+            {isDrawTarget && (
                 <motion.div
                     className="absolute inset-0 rounded-full pointer-events-none"
                     style={{
-                        background: 'radial-gradient(ellipse, rgba(255,0,255,0.2) 0%, transparent 70%)',
+                        background: 'radial-gradient(ellipse, rgba(0,255,240,0.3) 0%, transparent 70%)',
                     }}
-                    animate={{ opacity: [0.3, 0.6, 0.3] }}
-                    transition={{ repeat: Infinity, duration: 1.5 }}
+                    animate={{ opacity: [0.4, 0.8, 0.4], scale: [1, 1.05, 1] }}
+                    transition={{ repeat: Infinity, duration: 1 }}
                 />
             )}
 
@@ -92,12 +92,12 @@ export function OpponentHand({ cardCount, position, isCurrentTurn = false, onCli
                             className={clsx(
                                 'w-full h-full rounded-md border-2',
                                 'bg-gradient-to-br from-dark-panel via-dark-circuit to-dark-panel',
-                                isCurrentTurn ? 'border-neon-pink/60' : 'border-neon-cyan/30',
+                                isDrawTarget ? 'border-neon-cyan' : 'border-neon-cyan/30',
                                 'overflow-hidden'
                             )}
                             style={{
-                                boxShadow: isCurrentTurn
-                                    ? '0 2px 8px rgba(255,0,255,0.3)'
+                                boxShadow: isDrawTarget
+                                    ? '0 2px 12px rgba(0,255,240,0.5)'
                                     : '0 2px 4px rgba(0,0,0,0.3)',
                             }}
                         >

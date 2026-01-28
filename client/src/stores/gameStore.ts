@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Card, Phase, PublicPlayer, PlayedCard, MaskType, PlayerStanding, MaskEmotion } from '@/lib/types';
+import { Card, Phase, PublicPlayer, PlayerStanding, MaskEmotion, GameAction, DiscardedPair } from '@/lib/types';
 
 interface GameState {
   // Connection
@@ -12,16 +12,15 @@ interface GameState {
   phase: Phase;
   players: PublicPlayer[];
   myHand: Card[];
-  currentTrick: PlayedCard[];
   currentPlayerId: string | null;
-  validCards: Card[];
   isMyTurn: boolean;
-
-  // Phase tracking
-  heartsBroken: boolean;
+  currentTargetId: string | null; // Who to draw from
   
   // Elimination tracking
   eliminatedPlayerId: string | null;
+  
+  // Discarded pairs pile
+  discardedPairs: DiscardedPair[];
   
   // Game over
   isGameOver: boolean;
@@ -41,16 +40,22 @@ interface GameState {
   addPlayer: (player: PublicPlayer) => void;
   removePlayer: (playerId: string) => void;
   updatePlayerReady: (playerId: string, isReady: boolean) => void;
+  updatePlayerCardCount: (playerId: string, cardCount: number) => void;
   setMyHand: (cards: Card[]) => void;
-  addToTrick: (playedCard: PlayedCard) => void;
-  clearTrick: () => void;
   setCurrentPlayerId: (id: string | null) => void;
-  setValidCards: (cards: Card[]) => void;
   setIsMyTurn: (isMyTurn: boolean) => void;
+  setCurrentTargetId: (id: string | null) => void;
   setMaskEmotion: (playerId: string, emotion: MaskEmotion) => void;
   setEliminated: (playerId: string) => void;
   setGameOver: (winnerId: string, standings: PlayerStanding[]) => void;
   removeCardFromHand: (card: Card) => void;
+  addDiscardedPair: (pair: DiscardedPair) => void;
+  clearDiscardedPairs: () => void;
+  
+  // Action tracking
+  lastAction: GameAction | null;
+  setLastAction: (action: GameAction | null) => void;
+
   reset: () => void;
 }
 
@@ -62,16 +67,16 @@ const initialState = {
   phase: 'WAITING' as Phase,
   players: [],
   myHand: [],
-  currentTrick: [],
   currentPlayerId: null,
-  validCards: [],
   isMyTurn: false,
-  heartsBroken: false,
+  currentTargetId: null,
   eliminatedPlayerId: null,
+  discardedPairs: [],
   isGameOver: false,
   finalStandings: [],
   winnerId: null,
   maskEmotions: {},
+  lastAction: null,
 };
 
 export const useGameStore = create<GameState>((set, get) => ({
@@ -103,17 +108,17 @@ export const useGameStore = create<GameState>((set, get) => ({
   
   setMyHand: (cards) => set({ myHand: cards }),
   
-  addToTrick: (playedCard) => set((state) => ({
-    currentTrick: [...state.currentTrick, playedCard],
+  updatePlayerCardCount: (playerId, cardCount) => set((state) => ({
+    players: state.players.map((p) =>
+      p.id === playerId ? { ...p, cardCount } : p
+    ),
   })),
-  
-  clearTrick: () => set({ currentTrick: [] }),
   
   setCurrentPlayerId: (id) => set({ currentPlayerId: id }),
   
-  setValidCards: (cards) => set({ validCards: cards, isMyTurn: true }),
-  
   setIsMyTurn: (isMyTurn) => set({ isMyTurn }),
+  
+  setCurrentTargetId: (id) => set({ currentTargetId: id }),
   
   setMaskEmotion: (playerId, emotion) => set((state) => ({
     maskEmotions: { ...state.maskEmotions, [playerId]: emotion },
@@ -138,6 +143,14 @@ export const useGameStore = create<GameState>((set, get) => ({
       (c) => !(c.suit === card.suit && c.rank === card.rank)
     ),
   })),
+
+  addDiscardedPair: (pair) => set((state) => ({
+    discardedPairs: [...state.discardedPairs, pair],
+  })),
+  
+  clearDiscardedPairs: () => set({ discardedPairs: [] }),
+
+  setLastAction: (action) => set({ lastAction: action }),
   
   reset: () => set(initialState),
 }));

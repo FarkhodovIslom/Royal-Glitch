@@ -19,14 +19,15 @@ export default function GamePage() {
         phase,
         players,
         myHand,
-        currentTrick,
-        validCards,
         isMyTurn,
+        currentTargetId,
+        discardedPairs,
         maskEmotions,
         isGameOver,
         winnerId,
         finalStandings,
         eliminatedPlayerId,
+        lastAction,
     } = useGameStore();
 
     const [showPhaseTransition, setShowPhaseTransition] = useState(false);
@@ -158,10 +159,11 @@ export default function GamePage() {
             {/* Game Table - Classic Hearts Layout */}
             <GameTable
                 players={players}
-                currentTrick={currentTrick}
+                lastAction={lastAction}
                 myHand={myHand}
-                validCards={validCards}
                 isMyTurn={isMyTurn}
+                currentTargetId={currentTargetId}
+                discardedPairs={discardedPairs}
                 onDrawCard={handleDrawCard}
                 playerPositions={playerPositions}
                 maskEmotions={maskEmotions}

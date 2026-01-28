@@ -5,15 +5,17 @@ import { CardHand } from './CardHand';
 import { OpponentHand } from './OpponentHand';
 import { PlayerInfo } from './PlayerInfo';
 import { TrickArea } from './TrickArea';
-import { PublicPlayer, Card, PlayedCard, MaskEmotion } from '@/lib/types';
+import { DiscardPile } from './DiscardPile';
+import { PublicPlayer, Card, MaskEmotion, GameAction, DiscardedPair } from '@/lib/types';
 import styles from './GameTable.module.css';
 
 interface GameTableProps {
     players: PublicPlayer[];
-    currentTrick: PlayedCard[];
+    lastAction: GameAction | null;
     myHand: Card[];
-    validCards: Card[];
     isMyTurn: boolean;
+    currentTargetId: string | null;
+    discardedPairs: DiscardedPair[];
     onDrawCard: () => void;
     playerPositions: Record<string, 'top' | 'right' | 'bottom' | 'left'>;
     maskEmotions: Record<string, MaskEmotion>;
@@ -24,10 +26,11 @@ type Position = 'north' | 'east' | 'south' | 'west';
 
 export function GameTable({
     players,
-    currentTrick,
+    lastAction,
     myHand,
-    validCards,
     isMyTurn,
+    currentTargetId,
+    discardedPairs,
     onDrawCard,
     playerPositions,
     maskEmotions,
@@ -57,11 +60,16 @@ export function GameTable({
     const westPlayer = getPlayerAtPosition('west');
     const southPlayer = getPlayerAtPosition('south');
 
-    // Helper to check if we can draw from this player (simplification: if it's my turn, I can draw from someone)
-    // The server enforces the correct target, so we can just treat any click as a draw attempt for now
-    // or add logic to only enable the correct target if we had that info prop-drilled
-    const handleDraw = () => {
-        if (isMyTurn) onDrawCard();
+    // Check if a player is the valid draw target
+    const isDrawTarget = (player: { id: string } | null) => {
+        return !!(isMyTurn && player && player.id === currentTargetId);
+    };
+
+    // Only allow draw from valid target
+    const handleDraw = (player: { id: string } | null) => {
+        if (isMyTurn && player && player.id === currentTargetId) {
+            onDrawCard();
+        }
     };
 
     return (
@@ -77,8 +85,8 @@ export function GameTable({
                         <OpponentHand
                             cardCount={northPlayer.cardCount}
                             position="north"
-                            isCurrentTurn={!northPlayer.isEliminated && isMyTurn === false} // Visual only
-                            onClick={handleDraw}
+                            isDrawTarget={isDrawTarget(northPlayer)}
+                            onClick={() => handleDraw(northPlayer)}
                         />
                         <PlayerInfo
                             player={northPlayer}
@@ -100,8 +108,8 @@ export function GameTable({
                         <OpponentHand
                             cardCount={westPlayer.cardCount}
                             position="west"
-                            isCurrentTurn={!westPlayer.isEliminated}
-                            onClick={handleDraw}
+                            isDrawTarget={isDrawTarget(westPlayer)}
+                            onClick={() => handleDraw(westPlayer)}
                         />
                         <PlayerInfo
                             player={westPlayer}
@@ -115,9 +123,14 @@ export function GameTable({
             {/* Center trick area */}
             <div className={styles.center}>
                 <TrickArea
-                    currentTrick={currentTrick}
+                    lastAction={lastAction}
                     playerPositions={trickPositions}
                 />
+            </div>
+
+            {/* Discard pile - positioned top right */}
+            <div className="absolute top-4 right-4 z-10">
+                <DiscardPile discardedPairs={discardedPairs} />
             </div>
 
             {/* East player area */}
@@ -131,8 +144,8 @@ export function GameTable({
                         <OpponentHand
                             cardCount={eastPlayer.cardCount}
                             position="east"
-                            isCurrentTurn={!eastPlayer.isEliminated}
-                            onClick={handleDraw}
+                            isDrawTarget={isDrawTarget(eastPlayer)}
+                            onClick={() => handleDraw(eastPlayer)}
                         />
                         <PlayerInfo
                             player={eastPlayer}
@@ -159,7 +172,6 @@ export function GameTable({
                         />
                         <CardHand
                             cards={myHand}
-                            validCards={validCards}
                             isMyTurn={isMyTurn}
                         />
                     </motion.div>

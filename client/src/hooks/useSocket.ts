@@ -57,20 +57,55 @@ export function useSocket() {
 
       socket.on('pairs_purged', ({ playerId, pairs, remainingCount }) => {
         console.log('Pairs purged:', playerId, pairs.length, 'pairs');
-        // TODO: Update store to show animation or discarded pairs
-        // For now, just update the player's card count if it's not us (since hand_dealt handles us)
+        // Update card counts after pairs purged
         if (playerId !== useGameStore.getState().playerId) {
-            // we might need a store action to update opponent card counts
+            useGameStore.getState().updatePlayerCardCount(playerId, remainingCount);
         }
+        // Add initial pairs to discard pile
+        pairs.forEach((pairCards: [any, any]) => {
+          useGameStore.getState().addDiscardedPair({
+            playerId,
+            cards: pairCards,
+            timestamp: Date.now(),
+          });
+        });
       });
 
       socket.on('card_drawn', ({ drawerId, targetId, formedPair, pair, drawerCardCount, targetCardCount }) => {
         console.log('Card drawn:', drawerId, 'from', targetId, 'Pair:', formedPair);
-        // Refresh hand is handled by separate hand_dealt event for the drawer
+        
+        // Update card counts for both players
+        useGameStore.getState().updatePlayerCardCount(drawerId, drawerCardCount);
+        useGameStore.getState().updatePlayerCardCount(targetId, targetCardCount);
+        
+        // Dispatch visual action
+        if (formedPair && pair) {
+          useGameStore.getState().setLastAction({
+            type: 'PAIR',
+            playerId: drawerId,
+            targetId,
+            cards: pair,
+            timestamp: Date.now(),
+          });
+          // Add to discard pile
+          useGameStore.getState().addDiscardedPair({
+            playerId: drawerId,
+            cards: pair,
+            timestamp: Date.now(),
+          });
+        } else {
+          useGameStore.getState().setLastAction({
+            type: 'DRAW',
+            playerId: drawerId,
+            targetId,
+            timestamp: Date.now(),
+          });
+        }
       });
 
       socket.on('player_emptied', ({ playerId }) => {
          console.log('Player emptied hand:', playerId);
+         useGameStore.getState().updatePlayerCardCount(playerId, 0);
       });
 
       socket.on('round_over', ({ loserId, glitchCard, standings }) => {
@@ -91,12 +126,7 @@ export function useSocket() {
       socket.on('your_turn', ({ targetPlayerId, targetCardCount }: { targetPlayerId: string, targetCardCount: number }) => {
         console.log('Your turn! Draw from:', targetPlayerId);
         useGameStore.getState().setIsMyTurn(true);
-        // Store target info if needed
-      });
-
-      socket.on('trick_complete', ({ winnerId, cards, damage }) => {
-        // Deprecated event, keeping for safety or removing?
-        // Pair annihilation doesn't have tricks in the traditional sense
+        useGameStore.getState().setCurrentTargetId(targetPlayerId);
       });
 
       socket.on('mask_emotion', ({ playerId, emotion }: { playerId: string; emotion: MaskEmotion }) => {
@@ -184,6 +214,7 @@ export function useSocket() {
     const socket = getSocket();
     socket.emit('draw_card', { cardIndex });
     useGameStore.getState().setIsMyTurn(false);
+    useGameStore.getState().setCurrentTargetId(null);
   }, []);
 
   const getRooms = useCallback(() => {

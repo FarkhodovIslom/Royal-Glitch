@@ -41,12 +41,26 @@ export interface PlayedCard {
   card: Card;
 }
 
+export interface GameAction {
+  type: 'DRAW' | 'PAIR' | 'GLITCH_WIN' | 'GLITCH_LOSE';
+  playerId: string;
+  targetId?: string;
+  cards?: [Card, Card];
+  timestamp: number;
+}
+
 export interface PlayerStanding {
   playerId: string;
   placement: number;
   isLoser: boolean;
   ratingChange: number;
   newRating: number;
+}
+
+export interface DiscardedPair {
+  playerId: string;
+  cards: [Card, Card];
+  timestamp: number;
 }
 
 export interface RoomInfo {
