@@ -1,25 +1,19 @@
 // ============================================
 // ROYAL GLITCH - Phase Progression
+// Pair Annihilation System (Old Maid Variant)
 // ============================================
 
 import { 
   Phase, 
   Player, 
-  PhaseConfig, 
-  PHASE_CONFIGS, 
   RATING_CHANGES,
   PlayerStanding 
 } from '../shared/types';
 
-// Get phase configuration
-export function getPhaseConfig(phase: Phase): PhaseConfig | null {
-  if (phase === 'QUADRANT' || phase === 'TRIANGLE' || phase === 'DUEL') {
-    return PHASE_CONFIGS[phase];
-  }
-  return null;
-}
+// Phase progression order
+const PHASE_ORDER: Phase[] = ['WAITING', 'PLAYING', 'GAME_OVER'];
 
-// Determine which player is eliminated (lowest integrity)
+// Determine which player is eliminated (placeholder - not used in Pair Annihilation)
 export function determineEliminated(players: Player[]): Player {
   const activePlayers = players.filter(p => !p.isEliminated);
   
@@ -27,67 +21,45 @@ export function determineEliminated(players: Player[]): Player {
     throw new Error('No active players');
   }
 
-  // Find player with lowest integrity
-  // In case of tie, player with lower rating is eliminated (more dramatic)
-  return activePlayers.reduce((lowest, player) => {
-    if (player.integrity < lowest.integrity) {
-      return player;
-    }
-    if (player.integrity === lowest.integrity && player.rating < lowest.rating) {
-      return player;
-    }
-    return lowest;
-  });
+  // In Pair Annihilation, elimination happens through holding The Glitch
+  // This function is kept for potential future extensions
+  return activePlayers[0];
 }
 
 // Advance to next phase
 export function advancePhase(currentPhase: Phase): Phase {
-  switch (currentPhase) {
-    case 'QUADRANT':
-      return 'TRIANGLE';
-    case 'TRIANGLE':
-      return 'DUEL';
-    case 'DUEL':
-      return 'GAME_OVER';
-    default:
-      return 'GAME_OVER';
+  const currentIndex = PHASE_ORDER.indexOf(currentPhase);
+  if (currentIndex >= 0 && currentIndex < PHASE_ORDER.length - 1) {
+    return PHASE_ORDER[currentIndex + 1];
   }
+  return 'GAME_OVER';
 }
 
-// Get placement for eliminated player based on current phase
+// Get placement for eliminated player (placeholder - not used in Pair Annihilation)
 export function getPlacement(phase: Phase): number {
-  switch (phase) {
-    case 'QUADRANT':
-      return 4; // 4th place
-    case 'TRIANGLE':
-      return 3; // 3rd place
-    case 'DUEL':
-      return 2; // 2nd place (loser of finals)
-    default:
-      return 0;
+  // In Pair Annihilation, placements are calculated differently
+  return 0;
+}
+
+// Calculate rating change based on placement
+export function calculateRatingChange(placement: number): number {
+  if (placement === 1) {
+    return RATING_CHANGES.WINNER;
   }
+  return RATING_CHANGES.LOSER;
 }
 
-// Calculate rating change for a placement
-export function calculateRatingChange(placement: 1 | 2 | 3 | 4): number {
-  return RATING_CHANGES[placement];
-}
-
-// Reset integrity for surviving players
+// Reset player state for new round (placeholder)
 export function resetIntegrity(players: Player[]): void {
-  for (const player of players) {
-    if (!player.isEliminated) {
-      player.integrity = 100;
-    }
-  }
+  // Pair Annihilation doesn't use integrity
+  // This is kept for potential future extensions
 }
 
-// Clear players' hands and tricks won for new phase
+// Clear players' hands for new phase
 export function clearPhaseData(players: Player[]): void {
   for (const player of players) {
     if (!player.isEliminated) {
       player.hand = [];
-      player.tricksWon = [];
     }
   }
 }
@@ -103,10 +75,11 @@ export function generateFinalStandings(
   for (const elim of eliminations) {
     const player = players.find(p => p.id === elim.playerId);
     if (player) {
-      const ratingChange = calculateRatingChange(elim.placement as 1 | 2 | 3 | 4);
+      const ratingChange = calculateRatingChange(elim.placement);
       standings.push({
         playerId: player.id,
         placement: elim.placement,
+        isLoser: true,
         ratingChange,
         newRating: Math.max(0, player.rating + ratingChange),
       });
@@ -120,6 +93,7 @@ export function generateFinalStandings(
     standings.push({
       playerId: winner.id,
       placement: 1,
+      isLoser: false,
       ratingChange,
       newRating: winner.rating + ratingChange,
     });
@@ -141,8 +115,19 @@ export function getActivePlayers(players: Player[]): Player[] {
   return players.filter(p => !p.isEliminated);
 }
 
-// Check if game should end (only 1 player left or DUEL phase completed)
+// Check if game should end
 export function shouldGameEnd(players: Player[], phase: Phase): boolean {
   const activePlayers = getActivePlayerCount(players);
   return activePlayers <= 1 || phase === 'GAME_OVER';
 }
+
+// Get phase configuration (placeholder for future extensions)
+export function getPhaseConfig(phase: Phase): Record<string, unknown> | null {
+  const configs: Record<Phase, Record<string, unknown>> = {
+    WAITING: { name: 'WAITING FOR PLAYERS', minPlayers: 2, maxPlayers: 4 },
+    PLAYING: { name: 'PAIR ANNIHILATION', minPlayers: 2, maxPlayers: 4 },
+    GAME_OVER: { name: 'GAME OVER', minPlayers: 0, maxPlayers: 0 },
+  };
+  return configs[phase] || null;
+}
+

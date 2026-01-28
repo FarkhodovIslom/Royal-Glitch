@@ -49,17 +49,10 @@ export function PlayerInfo({ player, position, emotion = 'idle', isMe = false }:
 
             {/* Info */}
             <div className={clsx('flex gap-2', isVertical ? 'flex-col items-center' : 'flex-row items-center')}>
-                {/* Integrity */}
-                <div className="flex items-center gap-1">
-                    <span
-                        className={clsx(
-                            'text-xs font-mono font-bold',
-                            player.integrity > 50 ? 'text-neon-cyan' : player.integrity > 25 ? 'text-glitch-yellow' : 'text-glitch-red'
-                        )}
-                    >
-                        {player.integrity}%
-                    </span>
-                </div>
+                {/* Card Count instead of Integrity */}
+                <span className="text-xs font-mono font-bold text-neon-cyan">
+                    {player.cardCount} Cards
+                </span>
 
                 {/* Rating */}
                 <span className="text-[10px] text-neon-purple/60 font-mono">

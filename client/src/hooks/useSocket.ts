@@ -99,22 +99,12 @@ export function useSocket() {
         // Pair annihilation doesn't have tricks in the traditional sense
       });
 
-      socket.on('integrity_update', ({ playerId, integrity }) => {
-        console.log('Integrity update:', playerId, integrity);
-        useGameStore.getState().updateIntegrity(playerId, integrity);
-      });
-
       socket.on('mask_emotion', ({ playerId, emotion }: { playerId: string; emotion: MaskEmotion }) => {
         console.log('Mask emotion:', playerId, emotion);
         useGameStore.getState().setMaskEmotion(playerId, emotion);
         setTimeout(() => {
           useGameStore.getState().setMaskEmotion(playerId, 'idle');
         }, 1000);
-      });
-
-      socket.on('phase_complete', ({ eliminatedId }) => {
-        console.log('Phase complete, eliminated:', eliminatedId);
-        useGameStore.getState().setEliminated(eliminatedId);
       });
 
       socket.on('player_eliminated', ({ playerId, placement }) => {

@@ -18,33 +18,19 @@ export function PhaseTransition({
 }: PhaseTransitionProps) {
     const getPhaseConfig = () => {
         switch (phase) {
-            case 'QUADRANT':
+            case 'PLAYING':
                 return {
-                    title: 'PHASE 1',
-                    subtitle: 'THE QUADRANT',
+                    title: 'PAIR ANNIHILATION',
+                    subtitle: 'AVOID THE GLITCH',
                     color: '#00FFF0',
-                    players: 4
-                };
-            case 'TRIANGLE':
-                return {
-                    title: 'PHASE 2',
-                    subtitle: 'THE TRIANGLE',
-                    color: '#FFD700',
-                    players: 3
-                };
-            case 'DUEL':
-                return {
-                    title: 'PHASE 3',
-                    subtitle: 'THE DUEL',
-                    color: '#FF3333',
-                    players: 2
+                    players: 0 // Not used for dot indicator anymore or dynamic
                 };
             case 'GAME_OVER':
                 return {
                     title: 'GAME OVER',
                     subtitle: '',
                     color: '#FF00FF',
-                    players: 1
+                    players: 0
                 };
             default:
                 return null;

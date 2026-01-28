@@ -2,7 +2,6 @@
 
 import { motion, AnimatePresence } from 'framer-motion';
 import { MaskAvatar } from '@/components/masks/MaskAvatar';
-import { IntegrityBar } from './IntegrityBar';
 import { PublicPlayer, MaskEmotion } from '@/lib/types';
 import clsx from 'clsx';
 
@@ -107,10 +106,6 @@ export function PlayerSlot({
                         isEliminated={player.isEliminated}
                         rating={player.rating}
                     />
-
-                    <div className="w-28">
-                        <IntegrityBar value={player.integrity} size="sm" />
-                    </div>
 
                     {/* Card count */}
                     {!player.isEliminated && player.cardCount > 0 && (

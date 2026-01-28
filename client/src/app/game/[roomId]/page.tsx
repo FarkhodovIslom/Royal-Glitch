@@ -162,7 +162,7 @@ export default function GamePage() {
                 myHand={myHand}
                 validCards={validCards}
                 isMyTurn={isMyTurn}
-                onPlayCard={handlePlayCard}
+                onDrawCard={handleDrawCard}
                 playerPositions={playerPositions}
                 maskEmotions={maskEmotions}
                 playerId={playerId}

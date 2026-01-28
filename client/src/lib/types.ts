@@ -10,6 +10,7 @@ export interface Card {
   suit: Suit;
   rank: Rank;
   value: number;
+  isGlitch?: boolean;
 }
 
 export type MaskType = 
@@ -22,16 +23,17 @@ export type MaskType =
 
 export type MaskEmotion = 'idle' | 'shake' | 'glitch' | 'pulse' | 'crack';
 
-export type Phase = 'WAITING' | 'QUADRANT' | 'TRIANGLE' | 'DUEL' | 'GAME_OVER';
+export type Phase = 'WAITING' | 'PLAYING' | 'GAME_OVER';
 
 export interface PublicPlayer {
   id: string;
   maskType: MaskType;
-  integrity: number;
+  // integrity: number; // Removed in Pair Annihilation
   isEliminated: boolean;
   isReady: boolean;
   rating: number;
   cardCount: number;
+  hasWon: boolean;
 }
 
 export interface PlayedCard {
@@ -42,6 +44,7 @@ export interface PlayedCard {
 export interface PlayerStanding {
   playerId: string;
   placement: number;
+  isLoser: boolean;
   ratingChange: number;
   newRating: number;
 }
@@ -81,8 +84,6 @@ export const MASK_NAMES: Record<MaskType, string> = {
 // Phase display names
 export const PHASE_NAMES: Record<Phase, string> = {
   WAITING: 'Waiting for Players',
-  QUADRANT: 'Phase 1: The Quadrant',
-  TRIANGLE: 'Phase 2: The Triangle',
-  DUEL: 'Phase 3: The Duel',
+  PLAYING: 'Pair Annihilation',
   GAME_OVER: 'Game Over',
 };

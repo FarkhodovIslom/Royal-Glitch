@@ -1,42 +1,44 @@
 // ============================================
 // ROYAL GLITCH - Damage Calculation
+// Pair Annihilation System (Old Maid Variant)
 // ============================================
 
-import { Card, DAMAGE } from '../shared/types';
-import { isHeart, isQueenOfSpades, isJackOfDiamonds } from './deck';
+import { Card } from '../shared/types';
 
-// Calculate damage from a set of cards (cards collected from tricks)
+// Helper functions for card checks
+function isHeart(card: Card): boolean {
+  return card.suit === 'hearts';
+}
+
+function isQueenOfSpades(card: Card): boolean {
+  return card.suit === 'spades' && card.rank === 'Q';
+}
+
+function isJackOfDiamonds(card: Card): boolean {
+  return card.suit === 'diamonds' && card.rank === 'J';
+}
+
+// Note: The Pair Annihilation variant doesn't use traditional damage mechanics
+// like Hearts does. This module is kept for potential future extensions.
+// In this variant, damage is tracked through the round_end mechanism.
+
+// Calculate damage from a set of cards (placeholder for potential extension)
 export function calculateDamage(cards: Card[]): number {
-  let damage = 0;
-
-  for (const card of cards) {
-    if (isHeart(card)) {
-      damage += DAMAGE.HEART; // 5% per heart
-    }
-    if (isQueenOfSpades(card)) {
-      damage += DAMAGE.QUEEN_OF_SPADES; // 40% for Queen of Spades
-    }
-    // Optional: Jack of Diamonds heals
-    if (isJackOfDiamonds(card)) {
-      damage += DAMAGE.JACK_OF_DIAMONDS; // -10% heal
-    }
-  }
-
-  return damage;
+  // Pair Annihilation doesn't use damage from collected cards
+  return 0;
 }
 
-// Calculate damage for a single trick
+// Calculate damage for a single trick (placeholder)
 export function calculateTrickDamage(trickCards: Card[]): number {
-  return calculateDamage(trickCards);
+  return 0;
 }
 
-// Apply damage to integrity (clamp between 0 and 100)
+// Apply damage to integrity (placeholder - not used in Pair Annihilation)
 export function applyDamage(currentIntegrity: number, damage: number): number {
-  const newIntegrity = currentIntegrity - damage;
-  return Math.max(0, Math.min(100, newIntegrity));
+  return Math.max(0, Math.min(100, currentIntegrity - damage));
 }
 
-// Get damage breakdown for display
+// Get damage breakdown for display (placeholder)
 export interface DamageBreakdown {
   hearts: number;
   queenOfSpades: boolean;
@@ -55,18 +57,15 @@ export function getDamageBreakdown(cards: Card[]): DamageBreakdown {
     if (isJackOfDiamonds(card)) jackOfDiamonds = true;
   }
 
-  const totalDamage = calculateDamage(cards);
-
   return {
     hearts,
     queenOfSpades,
     jackOfDiamonds,
-    totalDamage,
+    totalDamage: 0,
   };
 }
 
-// Check if "Shooting the Moon" occurred (got all hearts + Queen of Spades)
-// In this variant, we don't use this mechanic, but kept for potential extension
+// Check if "Shooting the Moon" occurred (placeholder - not used in Pair Annihilation)
 export function checkShootTheMoon(cards: Card[]): boolean {
   const heartCount = cards.filter(isHeart).length;
   const hasQueenOfSpades = cards.some(isQueenOfSpades);

@@ -8,14 +8,13 @@ interface CardHandProps {
     cards: CardType[];
     validCards: CardType[];
     isMyTurn: boolean;
-    onPlayCard?: (card: CardType) => void;
+
 }
 
 export function CardHand({
     cards,
     validCards,
     isMyTurn,
-    onPlayCard,
 }: CardHandProps) {
     const isValidCard = (card: CardType) => {
         return validCards.some(
@@ -47,7 +46,7 @@ export function CardHand({
                 {cards.map((card, index) => {
                     const angle = startAngle + index * fanAngle;
                     const isValid = isValidCard(card);
-                    const isPlayable = isMyTurn && isValid && !!onPlayCard;
+                    const isPlayable = false; // Simplified for Draw mechanic
 
                     // Arc positioning - wider spread
                     const xOffset = Math.sin((angle * Math.PI) / 180) * 250;
@@ -93,7 +92,7 @@ export function CardHand({
                             <Card
                                 card={card}
                                 isPlayable={isPlayable}
-                                onClick={() => isPlayable && onPlayCard && onPlayCard(card)}
+
                                 size="lg"
                             />
 

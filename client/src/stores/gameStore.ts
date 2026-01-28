@@ -47,7 +47,6 @@ interface GameState {
   setCurrentPlayerId: (id: string | null) => void;
   setValidCards: (cards: Card[]) => void;
   setIsMyTurn: (isMyTurn: boolean) => void;
-  updateIntegrity: (playerId: string, integrity: number) => void;
   setMaskEmotion: (playerId: string, emotion: MaskEmotion) => void;
   setEliminated: (playerId: string) => void;
   setGameOver: (winnerId: string, standings: PlayerStanding[]) => void;
@@ -115,12 +114,6 @@ export const useGameStore = create<GameState>((set, get) => ({
   setValidCards: (cards) => set({ validCards: cards, isMyTurn: true }),
   
   setIsMyTurn: (isMyTurn) => set({ isMyTurn }),
-  
-  updateIntegrity: (playerId, integrity) => set((state) => ({
-    players: state.players.map((p) =>
-      p.id === playerId ? { ...p, integrity } : p
-    ),
-  })),
   
   setMaskEmotion: (playerId, emotion) => set((state) => ({
     maskEmotions: { ...state.maskEmotions, [playerId]: emotion },
