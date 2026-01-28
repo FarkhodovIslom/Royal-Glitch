@@ -5,9 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useParams, useRouter } from 'next/navigation';
 import { useSocket } from '@/hooks/useSocket';
 import { useGameStore } from '@/stores/gameStore';
-import { CardHand } from '@/components/game/CardHand';
-import { PlayerSlot } from '@/components/game/PlayerSlot';
-import { TrickArea } from '@/components/game/TrickArea';
+import { GameTable } from '@/components/game/GameTable';
 import { PhaseTransition } from '@/components/effects/PhaseTransition';
 import { PHASE_NAMES, Card } from '@/lib/types';
 
@@ -157,62 +155,18 @@ export default function GamePage() {
                 </motion.div>
             )}
 
-            {/* Game table */}
-            <div className="absolute inset-0 flex items-center justify-center">
-                <div className="relative w-[700px] h-[500px]">
-                    {/* Table surface */}
-                    <div
-                        className="absolute inset-0 game-table rounded-3xl"
-                        style={{
-                            clipPath: 'polygon(5% 0%, 95% 0%, 100% 5%, 100% 95%, 95% 100%, 5% 100%, 0% 95%, 0% 5%)',
-                        }}
-                    >
-                        {/* Inner circuit pattern */}
-                        <div
-                            className="absolute inset-4 opacity-20"
-                            style={{
-                                backgroundImage: `url("data:image/svg+xml,%3Csvg width='30' height='30' viewBox='0 0 30 30' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 15h12v1H0v-1zm18 0h12v1H18v-1zM15 0v12h1V0h-1zm0 18v12h1V18h-1z' fill='%2300FFF0' fill-opacity='0.3'/%3E%3C/svg%3E")`,
-                            }}
-                        />
-                    </div>
-
-                    {/* Player slots */}
-                    {['top', 'right', 'left'].map((pos) => (
-                        <PlayerSlot
-                            key={pos}
-                            player={getPlayerAtPosition(pos as any)}
-                            position={pos as any}
-                            isCurrentTurn={false}
-                            emotion={maskEmotions[getPlayerAtPosition(pos as any)?.id || ''] || 'idle'}
-                        />
-                    ))}
-
-                    {/* My slot (bottom) */}
-                    <PlayerSlot
-                        player={getPlayerAtPosition('bottom')}
-                        position="bottom"
-                        isCurrentTurn={isMyTurn}
-                        emotion={maskEmotions[playerId || ''] || 'idle'}
-                        isMe
-                    />
-
-                    {/* Trick area */}
-                    <TrickArea
-                        currentTrick={currentTrick}
-                        playerPositions={playerPositions}
-                    />
-                </div>
-            </div>
-
-            {/* My hand */}
-            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10">
-                <CardHand
-                    cards={myHand}
-                    validCards={validCards}
-                    isMyTurn={isMyTurn}
-                    onPlayCard={handlePlayCard}
-                />
-            </div>
+            {/* Game Table - Classic Hearts Layout */}
+            <GameTable
+                players={players}
+                currentTrick={currentTrick}
+                myHand={myHand}
+                validCards={validCards}
+                isMyTurn={isMyTurn}
+                onPlayCard={handlePlayCard}
+                playerPositions={playerPositions}
+                maskEmotions={maskEmotions}
+                playerId={playerId}
+            />
 
             {/* Room ID + Connection status */}
             <div className="absolute bottom-4 right-4 flex items-center gap-3 text-xs z-20">
@@ -305,8 +259,8 @@ export default function GamePage() {
                                             <motion.div
                                                 key={standing.playerId}
                                                 className={`flex items-center justify-between p-3 clip-cyber-sm ${isWinner
-                                                        ? 'bg-glitch-yellow/20 border border-glitch-yellow/50'
-                                                        : 'bg-dark-circuit/50 border border-neon-cyan/20'
+                                                    ? 'bg-glitch-yellow/20 border border-glitch-yellow/50'
+                                                    : 'bg-dark-circuit/50 border border-neon-cyan/20'
                                                     }`}
                                                 initial={{ opacity: 0, x: -20 }}
                                                 animate={{ opacity: 1, x: 0 }}

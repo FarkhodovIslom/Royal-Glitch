@@ -23,8 +23,8 @@ export function CardHand({
         );
     };
 
-    // Fan layout calculations
-    const fanAngle = 3; // degrees between cards
+    // Fan layout calculations - wider spread for classic Hearts look
+    const fanAngle = Math.max(2, Math.min(5, 50 / cards.length)); // Adaptive angle
     const totalAngle = (cards.length - 1) * fanAngle;
     const startAngle = -totalAngle / 2;
 
@@ -43,15 +43,15 @@ export function CardHand({
             )}
 
             {/* Cards container */}
-            <div className="flex items-end justify-center relative" style={{ height: '180px' }}>
+            <div className="flex items-end justify-center relative" style={{ height: '160px' }}>
                 {cards.map((card, index) => {
                     const angle = startAngle + index * fanAngle;
                     const isValid = isValidCard(card);
                     const isPlayable = isMyTurn && isValid;
 
-                    // Arc positioning
-                    const xOffset = Math.sin((angle * Math.PI) / 180) * 200;
-                    const yOffset = Math.cos((angle * Math.PI) / 180) * 30 - 30;
+                    // Arc positioning - wider spread
+                    const xOffset = Math.sin((angle * Math.PI) / 180) * 250;
+                    const yOffset = Math.cos((angle * Math.PI) / 180) * 20 - 20;
 
                     return (
                         <motion.div

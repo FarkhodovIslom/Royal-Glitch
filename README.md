@@ -119,7 +119,7 @@ Starting rating: 1000 | Minimum: 0
 
 ## 🏆 Credits
 
-Built for **Global Game Jam 2026** (Tashkent)
+Built for **Global Game Jam 2026** (School 21)
 
 ---
 
