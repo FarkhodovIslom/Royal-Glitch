@@ -14,7 +14,7 @@ export default function GamePage() {
     const router = useRouter();
     const roomId = params.roomId as string;
 
-    const { connect, playCard, isConnected, playerId } = useSocket();
+    const { connect, drawCard, isConnected, playerId } = useSocket();
     const {
         phase,
         players,
@@ -76,10 +76,10 @@ export default function GamePage() {
     // Get current turn player
     const currentTurnPlayer = players.find(p => !p.isEliminated);
 
-    // Handle card play
-    const handlePlayCard = (card: Card) => {
+    // Handle draw card (Pair Annihilation logic)
+    const handleDrawCard = () => {
         if (isMyTurn) {
-            playCard(card);
+            drawCard(); // Add index if we want specific card picking later
         }
     };
 

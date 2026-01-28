@@ -1,138 +1,227 @@
+// ============================================
+// ROYAL GLITCH - Pair Annihilation Tests
+// ============================================
 
-import { createDeck, deal, isHeart, isQueenOfSpades, cardEquals, removeCardFromHand } from './deck';
-import { canPlayCard, determineTrickWinner, checkHeartsBroken, findFirstLeader } from './rules';
-import { calculateDamage, applyDamage } from './damage';
-import { advancePhase, getPhaseConfig, calculateRatingChange } from './phase';
-import { Card, PlayedCard, Suit } from '../shared/types';
+import { 
+  createDeck, 
+  isPair, 
+  isGlitch, 
+  shuffle, 
+  deal, 
+  drawRandomCard,
+  cardToString,
+} from './deck';
+import { 
+  findPairs, 
+  purgePairs, 
+  processDrawnCard, 
+  isGameOver,
+  getNextPlayer,
+  getPreviousPlayer,
+} from './rules';
+import { Card } from '../shared/types';
 
-describe('Game Engine', () => {
-  describe('Deck', () => {
-    it('should create a standard 52 card deck', () => {
+describe('Deck - Pair Annihilation', () => {
+  describe('createDeck', () => {
+    it('should create exactly 49 cards', () => {
       const deck = createDeck();
-      expect(deck.length).toBe(52);
+      expect(deck.length).toBe(49);
     });
 
-    it('should identify specific cards correctly', () => {
-      const qos: Card = { suit: 'spades', rank: 'Q', value: 12 };
-      const heart: Card = { suit: 'hearts', rank: 'A', value: 14 };
-      const club: Card = { suit: 'clubs', rank: '2', value: 2 };
-
-      expect(isQueenOfSpades(qos)).toBe(true);
-      expect(isQueenOfSpades(heart)).toBe(false);
-      expect(isHeart(heart)).toBe(true);
-      expect(isHeart(club)).toBe(false);
-    });
-
-    it('should deal cards correctly', () => {
+    it('should remove ♥Q, ♦Q, ♣Q but keep ♠Q', () => {
       const deck = createDeck();
-      const hands = deal(deck, 13, 4);
-      expect(hands.length).toBe(4);
-      expect(hands[0].length).toBe(13);
+      
+      const heartsQueen = deck.find(c => c.suit === 'hearts' && c.rank === 'Q');
+      const diamondsQueen = deck.find(c => c.suit === 'diamonds' && c.rank === 'Q');
+      const clubsQueen = deck.find(c => c.suit === 'clubs' && c.rank === 'Q');
+      const spadesQueen = deck.find(c => c.suit === 'spades' && c.rank === 'Q');
+      
+      expect(heartsQueen).toBeUndefined();
+      expect(diamondsQueen).toBeUndefined();
+      expect(clubsQueen).toBeUndefined();
+      expect(spadesQueen).toBeDefined();
+    });
+
+    it('should mark ♠Q as The Glitch', () => {
+      const deck = createDeck();
+      const glitch = deck.find(c => c.suit === 'spades' && c.rank === 'Q');
+      
+      expect(glitch).toBeDefined();
+      expect(glitch!.isGlitch).toBe(true);
+    });
+
+    it('should have exactly one Glitch card', () => {
+      const deck = createDeck();
+      const glitchCards = deck.filter(c => c.isGlitch);
+      
+      expect(glitchCards.length).toBe(1);
     });
   });
 
-  describe('Rules', () => {
-    const hand: Card[] = [
-      { suit: 'hearts', rank: 'A', value: 14 },
-      { suit: 'spades', rank: 'K', value: 13 },
-      { suit: 'clubs', rank: '2', value: 2 },
-    ];
-    const ledSuit: Suit = 'spades';
-
-    it('should validate following suit', () => {
-      const validCard: Card = { suit: 'spades', rank: 'K', value: 13 };
-      const invalidCard: Card = { suit: 'hearts', rank: 'A', value: 14 };
-
-      const result1 = canPlayCard(validCard, hand, ledSuit, false, false, false);
-      expect(result1.valid).toBe(true);
-
-      const result2 = canPlayCard(invalidCard, hand, ledSuit, false, false, false);
-      expect(result2.valid).toBe(false);
-      expect(result2.reason).toContain('Must follow suit');
-    });
-
-    it('should allow any card if void in led suit', () => {
-      const voidHand: Card[] = [
-        { suit: 'hearts', rank: 'A', value: 14 },
-        { suit: 'diamonds', rank: '2', value: 2 },
-      ];
-      const validCard: Card = { suit: 'hearts', rank: 'A', value: 14 };
+  describe('isPair', () => {
+    it('should return true for cards with same rank', () => {
+      const card1: Card = { suit: 'hearts', rank: '5', value: 5 };
+      const card2: Card = { suit: 'clubs', rank: '5', value: 5 };
       
-      const result = canPlayCard(validCard, voidHand, 'spades', false, false, false);
-      expect(result.valid).toBe(true);
+      expect(isPair(card1, card2)).toBe(true);
     });
 
-    it('should prevent playing hearts on first trick unless only hearts/QoS', () => {
-      const heart: Card = { suit: 'hearts', rank: 'A', value: 14 };
-      // Hand with a non-heart/non-QoS card
-      const safeHand: Card[] = [{ suit: 'clubs', rank: '2', value: 2 }, heart];
+    it('should return false for cards with different ranks', () => {
+      const card1: Card = { suit: 'hearts', rank: '5', value: 5 };
+      const card2: Card = { suit: 'clubs', rank: '7', value: 7 };
       
-      const result = canPlayCard(heart, safeHand, null, false, true, true);
-      expect(result.valid).toBe(false);
-      expect(result.reason).toContain('first trick');
-    });
-
-    it('should determine trick winner correctly', () => {
-      const trick: PlayedCard[] = [
-        { playerId: 'p1', card: { suit: 'spades', rank: '2', value: 2 } }, // Led
-        { playerId: 'p2', card: { suit: 'spades', rank: 'A', value: 14 } }, // Winner
-        { playerId: 'p3', card: { suit: 'hearts', rank: 'K', value: 13 } }, // Off-suit (high value but wrong suit)
-        { playerId: 'p4', card: { suit: 'spades', rank: 'K', value: 13 } },
-      ];
-
-      expect(determineTrickWinner(trick)).toBe('p2');
-    });
-
-    it('should check if hearts are broken', () => {
-      const broken: Card[] = [{ suit: 'hearts', rank: '2', value: 2 }];
-      const notBroken: Card[] = [{ suit: 'spades', rank: '2', value: 2 }];
-      
-      expect(checkHeartsBroken(broken)).toBe(true);
-      expect(checkHeartsBroken(notBroken)).toBe(false);
+      expect(isPair(card1, card2)).toBe(false);
     });
   });
 
-  describe('Damage', () => {
-    it('should calculate damage correctly', () => {
-      const cards: Card[] = [
-        { suit: 'hearts', rank: '2', value: 2 }, // 5
-        { suit: 'spades', rank: 'Q', value: 12 }, // 40
-        { suit: 'clubs', rank: '2', value: 2 },    // 0
-      ];
-      
-      expect(calculateDamage(cards)).toBe(45);
+  describe('isGlitch', () => {
+    it('should return true for ♠Q', () => {
+      const glitch: Card = { suit: 'spades', rank: 'Q', value: 12, isGlitch: true };
+      expect(isGlitch(glitch)).toBe(true);
     });
 
-    it('should apply damage to integrity correctly', () => {
-      expect(applyDamage(100, 45)).toBe(55);
-      expect(applyDamage(10, 20)).toBe(0); // Clamped at 0
+    it('should return false for other cards', () => {
+      const card: Card = { suit: 'hearts', rank: 'A', value: 14 };
+      expect(isGlitch(card)).toBe(false);
     });
   });
 
-  describe('Phase', () => {
-    it('should configure phases correctly', () => {
-      const qConfig = getPhaseConfig('QUADRANT');
-      expect(qConfig).toBeDefined();
-      expect(qConfig?.cardsPerPlayer).toBe(13);
-
-      const tConfig = getPhaseConfig('TRIANGLE');
-      expect(tConfig?.cardsPerPlayer).toBe(17);
-
-      const dConfig = getPhaseConfig('DUEL');
-      expect(dConfig).toBeDefined();
-      expect(dConfig?.cardsPerPlayer).toBe(26);
-      expect(dConfig?.playerCount).toBe(2);
+  describe('deal', () => {
+    it('should distribute all 49 cards to players', () => {
+      const deck = createDeck();
+      const hands = deal(deck, 4);
+      
+      const totalCards = hands.reduce((sum, hand) => sum + hand.length, 0);
+      expect(totalCards).toBe(49);
     });
 
-    it('should advance phase correctly', () => {
-      expect(advancePhase('QUADRANT')).toBe('TRIANGLE');
-      expect(advancePhase('TRIANGLE')).toBe('DUEL');
-      expect(advancePhase('DUEL')).toBe('GAME_OVER');
+    it('should give players roughly equal cards (within 1)', () => {
+      const deck = createDeck();
+      const hands = deal(deck, 4);
+      
+      const lengths = hands.map(h => h.length);
+      const max = Math.max(...lengths);
+      const min = Math.min(...lengths);
+      
+      expect(max - min).toBeLessThanOrEqual(1);
+    });
+  });
+});
+
+describe('Rules - Pair Annihilation', () => {
+  describe('findPairs', () => {
+    it('should find pairs in a hand', () => {
+      const hand: Card[] = [
+        { suit: 'hearts', rank: '5', value: 5 },
+        { suit: 'clubs', rank: '5', value: 5 },
+        { suit: 'hearts', rank: '7', value: 7 },
+        { suit: 'clubs', rank: '7', value: 7 },
+        { suit: 'hearts', rank: 'K', value: 13 },
+      ];
+      
+      const result = findPairs(hand);
+      
+      expect(result.pairCount).toBe(2);
+      expect(result.remaining.length).toBe(1);
+      expect(result.remaining[0].rank).toBe('K');
     });
 
-    it('should calculate rating changes', () => {
-      expect(calculateRatingChange(1)).toBe(35);
-      expect(calculateRatingChange(4)).toBe(-35);
+    it('should leave Glitch unpaired', () => {
+      const hand: Card[] = [
+        { suit: 'spades', rank: 'Q', value: 12, isGlitch: true },
+        { suit: 'hearts', rank: '3', value: 3 },
+        { suit: 'clubs', rank: '3', value: 3 },
+      ];
+      
+      const result = findPairs(hand);
+      
+      expect(result.pairCount).toBe(1);
+      expect(result.remaining.length).toBe(1);
+      expect(result.remaining[0].isGlitch).toBe(true);
+    });
+  });
+
+  describe('processDrawnCard', () => {
+    it('should form pair when matching card exists', () => {
+      const hand: Card[] = [
+        { suit: 'hearts', rank: '5', value: 5 },
+      ];
+      const drawnCard: Card = { suit: 'clubs', rank: '5', value: 5 };
+      
+      const result = processDrawnCard(hand, drawnCard);
+      
+      expect(result.formedPair).toBe(true);
+      expect(result.matchedCard).toBeDefined();
+      expect(result.newHand.length).toBe(0); // Both cards removed
+    });
+
+    it('should add card when no match exists', () => {
+      const hand: Card[] = [
+        { suit: 'hearts', rank: '5', value: 5 },
+      ];
+      const drawnCard: Card = { suit: 'clubs', rank: '7', value: 7 };
+      
+      const result = processDrawnCard(hand, drawnCard);
+      
+      expect(result.formedPair).toBe(false);
+      expect(result.matchedCard).toBeNull();
+      expect(result.newHand.length).toBe(2);
+    });
+
+    it('should not pair Glitch with anything', () => {
+      const hand: Card[] = [
+        { suit: 'hearts', rank: '5', value: 5 },
+      ];
+      const glitch: Card = { suit: 'spades', rank: 'Q', value: 12, isGlitch: true };
+      
+      const result = processDrawnCard(hand, glitch);
+      
+      expect(result.formedPair).toBe(false);
+      expect(result.newHand.length).toBe(2);
+    });
+  });
+
+  describe('isGameOver', () => {
+    it('should detect game over when one player holds only Glitch', () => {
+      const hands: Card[][] = [
+        [], // Player 0: empty
+        [], // Player 1: empty
+        [], // Player 2: empty
+        [{ suit: 'spades', rank: 'Q', value: 12, isGlitch: true }], // Player 3: Glitch
+      ];
+      
+      const result = isGameOver(hands);
+      
+      expect(result.over).toBe(true);
+      expect(result.loserIndex).toBe(3);
+    });
+
+    it('should not be game over while multiple players have cards', () => {
+      const hands: Card[][] = [
+        [{ suit: 'hearts', rank: '5', value: 5 }],
+        [{ suit: 'spades', rank: 'Q', value: 12, isGlitch: true }],
+      ];
+      
+      const result = isGameOver(hands);
+      
+      expect(result.over).toBe(false);
+    });
+  });
+
+  describe('getNextPlayer / getPreviousPlayer', () => {
+    it('should skip players with empty hands', () => {
+      const hands: Card[][] = [
+        [{ suit: 'hearts', rank: '5', value: 5 }], // 0: has cards
+        [], // 1: empty
+        [], // 2: empty
+        [{ suit: 'clubs', rank: '7', value: 7 }], // 3: has cards
+      ];
+      
+      const next = getNextPlayer(0, hands, 4);
+      expect(next).toBe(3); // Skips 1 and 2
+      
+      const prev = getPreviousPlayer(0, hands, 4);
+      expect(prev).toBe(3); // Wraps around, skips 2 and 1
     });
   });
 });

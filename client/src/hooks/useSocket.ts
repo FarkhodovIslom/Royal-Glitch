@@ -55,10 +55,32 @@ export function useSocket() {
         useGameStore.getState().updatePlayerReady(playerId, isReady);
       });
 
+      socket.on('pairs_purged', ({ playerId, pairs, remainingCount }) => {
+        console.log('Pairs purged:', playerId, pairs.length, 'pairs');
+        // TODO: Update store to show animation or discarded pairs
+        // For now, just update the player's card count if it's not us (since hand_dealt handles us)
+        if (playerId !== useGameStore.getState().playerId) {
+            // we might need a store action to update opponent card counts
+        }
+      });
+
+      socket.on('card_drawn', ({ drawerId, targetId, formedPair, pair, drawerCardCount, targetCardCount }) => {
+        console.log('Card drawn:', drawerId, 'from', targetId, 'Pair:', formedPair);
+        // Refresh hand is handled by separate hand_dealt event for the drawer
+      });
+
+      socket.on('player_emptied', ({ playerId }) => {
+         console.log('Player emptied hand:', playerId);
+      });
+
+      socket.on('round_over', ({ loserId, glitchCard, standings }) => {
+         console.log('Round over, loser:', loserId);
+         useGameStore.getState().setEliminated(loserId);
+      });
+
       socket.on('game_started', ({ phase }: { phase: Phase }) => {
         console.log('Game started, phase:', phase);
         useGameStore.getState().setPhase(phase);
-        useGameStore.getState().clearTrick();
       });
 
       socket.on('hand_dealt', ({ cards }: { cards: Card[] }) => {
@@ -66,23 +88,15 @@ export function useSocket() {
         useGameStore.getState().setMyHand(cards);
       });
 
-      socket.on('your_turn', ({ validCards }: { validCards: Card[] }) => {
-        console.log('Your turn! Valid cards:', validCards.length);
-        useGameStore.getState().setValidCards(validCards);
-      });
-
-      socket.on('card_played', ({ playerId, card }: { playerId: string; card: Card }) => {
-        console.log('Card played:', playerId, card);
-        useGameStore.getState().addToTrick({ playerId, card });
-        useGameStore.getState().setIsMyTurn(false);
+      socket.on('your_turn', ({ targetPlayerId, targetCardCount }: { targetPlayerId: string, targetCardCount: number }) => {
+        console.log('Your turn! Draw from:', targetPlayerId);
+        useGameStore.getState().setIsMyTurn(true);
+        // Store target info if needed
       });
 
       socket.on('trick_complete', ({ winnerId, cards, damage }) => {
-        console.log('Trick complete, winner:', winnerId);
-        // Clear trick after a delay for animation
-        setTimeout(() => {
-          useGameStore.getState().clearTrick();
-        }, 1500);
+        // Deprecated event, keeping for safety or removing?
+        // Pair annihilation doesn't have tricks in the traditional sense
       });
 
       socket.on('integrity_update', ({ playerId, integrity }) => {
@@ -93,7 +107,6 @@ export function useSocket() {
       socket.on('mask_emotion', ({ playerId, emotion }: { playerId: string; emotion: MaskEmotion }) => {
         console.log('Mask emotion:', playerId, emotion);
         useGameStore.getState().setMaskEmotion(playerId, emotion);
-        // Reset emotion after animation
         setTimeout(() => {
           useGameStore.getState().setMaskEmotion(playerId, 'idle');
         }, 1000);
@@ -108,9 +121,9 @@ export function useSocket() {
         console.log('Player eliminated:', playerId, 'Placement:', placement);
       });
 
-      socket.on('game_over', ({ winnerId, finalStandings }: { winnerId: string; finalStandings: PlayerStanding[] }) => {
-        console.log('Game over! Winner:', winnerId);
-        useGameStore.getState().setGameOver(winnerId, finalStandings);
+      socket.on('game_over', ({ finalWinnerId, finalStandings }: { finalWinnerId: string; finalStandings: PlayerStanding[] }) => {
+        console.log('Game over! Winner:', finalWinnerId);
+        useGameStore.getState().setGameOver(finalWinnerId, finalStandings);
       });
 
       socket.on('error', ({ message }) => {
@@ -169,7 +182,7 @@ export function useSocket() {
 
   const setReady = useCallback(() => {
     const socket = getSocket();
-    socket.emit('player_ready'); // Match server event name
+    socket.emit('player_ready'); 
   }, []);
 
   const startGame = useCallback(() => {
@@ -177,10 +190,9 @@ export function useSocket() {
     socket.emit('start_game');
   }, []);
 
-  const playCard = useCallback((card: Card) => {
+  const drawCard = useCallback((cardIndex?: number) => {
     const socket = getSocket();
-    socket.emit('play_card', { card });
-    useGameStore.getState().removeCardFromHand(card);
+    socket.emit('draw_card', { cardIndex });
     useGameStore.getState().setIsMyTurn(false);
   }, []);
 
@@ -201,7 +213,7 @@ export function useSocket() {
     leaveRoom,
     setReady,
     startGame,
-    playCard,
+    drawCard,
     getRooms,
     isConnected,
     playerId,

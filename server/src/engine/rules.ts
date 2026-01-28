@@ -1,130 +1,172 @@
 // ============================================
-// ROYAL GLITCH - Hearts Rule Validation
+// ROYAL GLITCH - Pair Annihilation Rules
+// Old Maid Variant Game Logic
 // ============================================
 
-import { Card, Suit, PlayedCard } from '../shared/types';
-import { isHeart, isQueenOfSpades } from './deck';
+import { Card } from '../shared/types';
+import { isPair, isGlitch, cardEquals, removeCardByIndex } from './deck';
 
-// Check if player has any cards of a specific suit
-export function hasSuit(hand: Card[], suit: Suit): boolean {
-  return hand.some(card => card.suit === suit);
+// Result of finding pairs in a hand
+export interface PairResult {
+  pairs: [Card, Card][];     // Matched pairs to be discarded
+  remaining: Card[];          // Cards left after purge
+  pairCount: number;          // Number of pairs found
 }
 
-// Get all cards of a specific suit from hand
-export function getCardsOfSuit(hand: Card[], suit: Suit): Card[] {
-  return hand.filter(card => card.suit === suit);
-}
-
-// Check if a card play is valid
-export function canPlayCard(
-  card: Card,
-  hand: Card[],
-  ledSuit: Suit | null,
-  heartsBroken: boolean,
-  isFirstTrick: boolean,
-  isLeading: boolean
-): { valid: boolean; reason?: string } {
-  // Card must be in hand
-  if (!hand.some(c => c.suit === card.suit && c.rank === card.rank)) {
-    return { valid: false, reason: 'Card not in hand' };
-  }
-
-  // First trick restrictions
-  if (isFirstTrick) {
-    // Cannot play hearts on first trick
-    if (isHeart(card)) {
-      // Unless hand is ALL hearts
-      if (hand.some(c => !isHeart(c))) {
-        return { valid: false, reason: 'Cannot play hearts on first trick' };
-      }
-    }
-    // Cannot play Queen of Spades on first trick
-    if (isQueenOfSpades(card)) {
-      // Unless hand has only Queen of Spades and hearts
-      const nonHearts = hand.filter(c => !isHeart(c));
-      if (nonHearts.length > 1 || (nonHearts.length === 1 && !isQueenOfSpades(nonHearts[0]))) {
-        return { valid: false, reason: 'Cannot play Queen of Spades on first trick' };
+// Find all pairs in a hand and return separated result
+export function findPairs(hand: Card[]): PairResult {
+  const pairs: [Card, Card][] = [];
+  const used = new Set<number>();
+  
+  // Compare each card with every other card to find pairs
+  for (let i = 0; i < hand.length; i++) {
+    if (used.has(i)) continue;
+    
+    for (let j = i + 1; j < hand.length; j++) {
+      if (used.has(j)) continue;
+      
+      if (isPair(hand[i], hand[j])) {
+        pairs.push([hand[i], hand[j]]);
+        used.add(i);
+        used.add(j);
+        break; // Each card can only be in one pair
       }
     }
   }
-
-  // If leading a trick
-  if (isLeading) {
-    // Cannot lead with hearts until hearts are broken
-    if (isHeart(card) && !heartsBroken) {
-      // Unless player has only hearts
-      if (hand.some(c => !isHeart(c))) {
-        return { valid: false, reason: 'Hearts not broken yet' };
-      }
-    }
-    return { valid: true };
-  }
-
-  // Following a trick - must follow suit if able
-  if (ledSuit) {
-    if (hasSuit(hand, ledSuit)) {
-      if (card.suit !== ledSuit) {
-        return { valid: false, reason: `Must follow suit (${ledSuit})` };
-      }
-    }
-    // If can't follow suit, any card is valid
-  }
-
-  return { valid: true };
+  
+  // Get remaining unpaired cards
+  const remaining = hand.filter((_, idx) => !used.has(idx));
+  
+  return {
+    pairs,
+    remaining,
+    pairCount: pairs.length,
+  };
 }
 
-// Determine the winner of a trick
-export function determineTrickWinner(trick: PlayedCard[]): string {
-  if (trick.length === 0) {
-    throw new Error('Empty trick');
-  }
-
-  const ledSuit = trick[0].card.suit;
-  let winner = trick[0];
-
-  for (const played of trick.slice(1)) {
-    // Only cards of the led suit can win
-    if (played.card.suit === ledSuit && played.card.value > winner.card.value) {
-      winner = played;
-    }
-  }
-
-  return winner.playerId;
+// Purge all pairs from a hand (auto-discard on deal or after draw)
+export function purgePairs(hand: Card[]): PairResult {
+  return findPairs(hand);
 }
 
-// Check if hearts have been broken (any heart or Queen of Spades played)
-export function checkHeartsBroken(playedCards: Card[]): boolean {
-  return playedCards.some(card => isHeart(card) || isQueenOfSpades(card));
-}
-
-// Get valid cards that can be played
-export function getValidCards(
-  hand: Card[],
-  ledSuit: Suit | null,
-  heartsBroken: boolean,
-  isFirstTrick: boolean,
-  isLeading: boolean
-): Card[] {
-  return hand.filter(card => {
-    const result = canPlayCard(card, hand, ledSuit, heartsBroken, isFirstTrick, isLeading);
-    return result.valid;
-  });
-}
-
-// Find who should lead first (player with 2 of clubs, or 3 of clubs in Phase 2)
-export function findFirstLeader(hands: Card[][]): number {
-  // Look for 2 of clubs first
-  for (let i = 0; i < hands.length; i++) {
-    if (hands[i].some(c => c.suit === 'clubs' && c.rank === '2')) {
-      return i;
+// Check if a specific card can form a pair with any card in hand
+export function findMatchingCard(hand: Card[], card: Card): Card | null {
+  // The Glitch (♠Q) cannot pair with anything since other Queens are removed
+  if (isGlitch(card)) {
+    return null;
+  }
+  
+  for (const handCard of hand) {
+    if (isPair(card, handCard) && !cardEquals(card, handCard)) {
+      return handCard;
     }
   }
-  // If 2 of clubs was removed (Phase 2), look for 3 of clubs
-  for (let i = 0; i < hands.length; i++) {
-    if (hands[i].some(c => c.suit === 'clubs' && c.rank === '3')) {
-      return i;
+  
+  return null;
+}
+
+// Draw a card and check for new pair
+export interface DrawResult {
+  drawnCard: Card;
+  formedPair: boolean;
+  matchedCard: Card | null;
+  newHand: Card[];          // Hand after adding card and removing pair (if any)
+}
+
+export function processDrawnCard(hand: Card[], drawnCard: Card): DrawResult {
+  const matchedCard = findMatchingCard(hand, drawnCard);
+  
+  if (matchedCard) {
+    // Pair formed - remove the matched card from hand (drawn card never added)
+    const newHand = hand.filter(c => !cardEquals(c, matchedCard));
+    return {
+      drawnCard,
+      formedPair: true,
+      matchedCard,
+      newHand,
+    };
+  } else {
+    // No pair - add drawn card to hand
+    return {
+      drawnCard,
+      formedPair: false,
+      matchedCard: null,
+      newHand: [...hand, drawnCard],
+    };
+  }
+}
+
+// Check if a player has won (empty hand and not holding Glitch)
+export function hasWon(hand: Card[]): boolean {
+  return hand.length === 0;
+}
+
+// Check if a player has lost (only card is Glitch and everyone else is empty)
+export function hasLost(hand: Card[], allOtherHandsEmpty: boolean): boolean {
+  if (!allOtherHandsEmpty) return false;
+  
+  // Must be holding exactly the Glitch
+  return hand.length === 1 && isGlitch(hand[0]);
+}
+
+// Check if game is over (one player holds only Glitch, others empty)
+export function isGameOver(hands: Card[][]): { over: boolean; loserIndex: number } {
+  const nonEmptyHands = hands.map((h, i) => ({ hand: h, index: i }))
+    .filter(({ hand }) => hand.length > 0);
+  
+  if (nonEmptyHands.length === 1) {
+    const { hand, index } = nonEmptyHands[0];
+    // Should be holding exactly the Glitch
+    if (hand.length === 1 && isGlitch(hand[0])) {
+      return { over: true, loserIndex: index };
     }
   }
-  // Fallback to first player
-  return 0;
+  
+  return { over: false, loserIndex: -1 };
+}
+
+// Get next player index (skipping eliminated players with empty hands)
+export function getNextPlayer(
+  currentIndex: number, 
+  hands: Card[][], 
+  playerCount: number
+): number {
+  let next = (currentIndex + 1) % playerCount;
+  let attempts = 0;
+  
+  // Find next player with cards
+  while (hands[next].length === 0 && attempts < playerCount) {
+    next = (next + 1) % playerCount;
+    attempts++;
+  }
+  
+  return next;
+}
+
+// Get previous player index (the one we draw FROM)
+export function getPreviousPlayer(
+  currentIndex: number,
+  hands: Card[][],
+  playerCount: number
+): number {
+  let prev = (currentIndex - 1 + playerCount) % playerCount;
+  let attempts = 0;
+  
+  // Find previous player with cards
+  while (hands[prev].length === 0 && attempts < playerCount) {
+    prev = (prev - 1 + playerCount) % playerCount;
+    attempts++;
+  }
+  
+  return prev;
+}
+
+// Count total cards remaining in all hands
+export function countTotalCards(hands: Card[][]): number {
+  return hands.reduce((sum, hand) => sum + hand.length, 0);
+}
+
+// Count players still in game (have cards or are the potential Glitch holder)
+export function countActivePlayers(hands: Card[][]): number {
+  return hands.filter(h => h.length > 0).length;
 }

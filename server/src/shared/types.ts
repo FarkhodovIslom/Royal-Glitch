@@ -1,5 +1,6 @@
 // ============================================
 // ROYAL GLITCH - Shared Types
+// Pair Annihilation System (Old Maid Variant)
 // ============================================
 
 // Card Types
@@ -10,6 +11,7 @@ export interface Card {
   suit: Suit;
   rank: Rank;
   value: number; // 2-14 for ranking
+  isGlitch?: boolean; // True for ♠Q (The Glitch)
 }
 
 // Mask Types
@@ -23,8 +25,8 @@ export type MaskType =
 
 export type MaskEmotion = 'idle' | 'shake' | 'glitch' | 'pulse' | 'crack';
 
-// Game Phases
-export type Phase = 'WAITING' | 'QUADRANT' | 'TRIANGLE' | 'DUEL' | 'GAME_OVER';
+// Game Phases (Simplified for Pair Annihilation)
+export type Phase = 'WAITING' | 'PLAYING' | 'GAME_OVER';
 
 // Player
 export interface Player {
@@ -32,85 +34,50 @@ export interface Player {
   socketId: string;
   maskType: MaskType;
   hand: Card[];
-  integrity: number; // 0-100
-  isEliminated: boolean;
+  isEliminated: boolean; // Lost the round (held Glitch)
   isReady: boolean;
   rating: number;
-  tricksWon: Card[][]; // Cards collected from won tricks this phase
+  hasWon: boolean; // Emptied hand without Glitch
 }
 
-// Played Card
-export interface PlayedCard {
+// Discarded pair record
+export interface DiscardedPair {
   playerId: string;
-  card: Card;
+  cards: [Card, Card];
+  timestamp: number;
 }
 
-// Trick
-export interface Trick {
-  cards: PlayedCard[];
-  winnerId: string;
+// Draw action record
+export interface DrawAction {
+  drawerId: string;      // Who drew
+  targetId: string;      // From whom
+  drawnCard: Card;       // What was drawn
+  formedPair: boolean;   // Did it form a pair?
+  matchedCard?: Card;    // The card it matched with (if any)
+  timestamp: number;
 }
 
 // Game Room
 export interface GameRoom {
   id: string;
-  creatorId: string; // The player who created the room
+  creatorId: string;
   phase: Phase;
   players: Player[];
-  currentTrick: PlayedCard[];
-  tricks: Trick[];
   currentPlayerIndex: number;
-  heartsBroken: boolean;
-  leadSuit: Suit | null;
-  phaseNumber: number; // 1, 2, or 3
+  discardedPairs: DiscardedPair[];
+  drawHistory: DrawAction[];
+  roundNumber: number;
+  glitchHolderId?: string; // Track who currently has The Glitch
 }
 
-// Rating Changes
+// Rating Changes (for end of round)
 export const RATING_CHANGES = {
-  1: 35,   // 1st place: +35
-  2: 0,    // 2nd place: 0
-  3: -20,  // 3rd place: -20
-  4: -35,  // 4th place: -35
+  WINNER: 15,   // Each winner: +15
+  LOSER: -30,   // The Glitch holder: -30
 } as const;
 
 export const STARTING_RATING = 1000;
 export const MIN_RATING = 0;
-
-// Damage Values
-export const DAMAGE = {
-  HEART: 5,           // 5% per heart
-  QUEEN_OF_SPADES: 40, // 40% for Queen of Spades
-  JACK_OF_DIAMONDS: -10, // -10% heal (optional)
-} as const;
-
-// Phase Configuration
-export interface PhaseConfig {
-  phase: Phase;
-  playerCount: number;
-  cardsPerPlayer: number;
-  removeCards: Card[];
-}
-
-export const PHASE_CONFIGS: Record<'QUADRANT' | 'TRIANGLE' | 'DUEL', PhaseConfig> = {
-  QUADRANT: {
-    phase: 'QUADRANT',
-    playerCount: 4,
-    cardsPerPlayer: 13,
-    removeCards: [],
-  },
-  TRIANGLE: {
-    phase: 'TRIANGLE',
-    playerCount: 3,
-    cardsPerPlayer: 17,
-    removeCards: [{ suit: 'clubs', rank: '2', value: 2 }], // Remove 2♣
-  },
-  DUEL: {
-    phase: 'DUEL',
-    playerCount: 2,
-    cardsPerPlayer: 26,
-    removeCards: [],
-  },
-};
 
 // Socket Events - Client to Server
 export interface ClientToServerEvents {
@@ -118,7 +85,8 @@ export interface ClientToServerEvents {
   join_room: (data: { roomId: string; maskType: MaskType }) => void;
   leave_room: (data: { roomId: string }) => void;
   player_ready: (data: { roomId: string }) => void;
-  play_card: (data: { roomId: string; card: Card }) => void;
+  start_game: (data: { roomId: string }) => void;
+  draw_card: (data: { roomId: string; cardIndex: number }) => void; // Blind draw
 }
 
 // Socket Events - Server to Client
@@ -129,14 +97,42 @@ export interface ServerToClientEvents {
   player_left: (data: { playerId: string }) => void;
   player_ready_change: (data: { playerId: string; isReady: boolean }) => void;
   game_started: (data: { phase: Phase }) => void;
+  
+  // Pair Annihilation events
   hand_dealt: (data: { cards: Card[] }) => void;
-  your_turn: (data: { validCards: Card[] }) => void;
-  card_played: (data: { playerId: string; card: Card }) => void;
-  trick_complete: (data: { winnerId: string; cards: PlayedCard[]; damage: Record<string, number> }) => void;
-  integrity_update: (data: { playerId: string; integrity: number }) => void;
-  phase_complete: (data: { eliminatedId: string; standings: PlayerStanding[] }) => void;
-  player_eliminated: (data: { playerId: string; placement: number }) => void;
-  game_over: (data: { winnerId: string; finalStandings: PlayerStanding[] }) => void;
+  pairs_purged: (data: { 
+    playerId: string; 
+    pairs: [Card, Card][]; 
+    remainingCount: number 
+  }) => void;
+  
+  your_turn: (data: { 
+    targetPlayerId: string;  // Who to draw from
+    targetCardCount: number; // How many cards they have
+  }) => void;
+  
+  card_drawn: (data: { 
+    drawerId: string; 
+    targetId: string; 
+    formedPair: boolean;
+    pair?: [Card, Card]; // The pair if formed (visible to all)
+    drawerCardCount: number;
+    targetCardCount: number;
+  }) => void;
+  
+  player_emptied: (data: { playerId: string }) => void; // Player won by emptying hand
+  
+  round_over: (data: { 
+    loserId: string;     // Who held The Glitch
+    glitchCard: Card;    // The Glitch card
+    standings: PlayerStanding[];
+  }) => void;
+  
+  game_over: (data: { 
+    finalWinnerId: string; 
+    finalStandings: PlayerStanding[] 
+  }) => void;
+  
   mask_emotion: (data: { playerId: string; emotion: MaskEmotion }) => void;
   invalid_move: (data: { reason: string }) => void;
   error: (data: { message: string }) => void;
@@ -146,17 +142,25 @@ export interface ServerToClientEvents {
 export interface PublicPlayer {
   id: string;
   maskType: MaskType;
-  integrity: number;
   isEliminated: boolean;
   isReady: boolean;
   rating: number;
   cardCount: number;
+  hasWon: boolean;
 }
 
 // Player Standing
 export interface PlayerStanding {
   playerId: string;
   placement: number;
+  isLoser: boolean;
   ratingChange: number;
   newRating: number;
 }
+
+// Phase names for display
+export const PHASE_NAMES: Record<Phase, string> = {
+  WAITING: 'WAITING FOR PLAYERS',
+  PLAYING: 'PAIR ANNIHILATION',
+  GAME_OVER: 'GAME OVER',
+};

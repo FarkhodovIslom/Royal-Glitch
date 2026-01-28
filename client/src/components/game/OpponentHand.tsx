@@ -7,9 +7,10 @@ interface OpponentHandProps {
     cardCount: number;
     position: 'north' | 'east' | 'west';
     isCurrentTurn?: boolean;
+    onClick?: () => void;
 }
 
-export function OpponentHand({ cardCount, position, isCurrentTurn = false }: OpponentHandProps) {
+export function OpponentHand({ cardCount, position, isCurrentTurn = false, onClick }: OpponentHandProps) {
     if (cardCount === 0) return null;
 
     const isVertical = position === 'east' || position === 'west';
@@ -26,9 +27,11 @@ export function OpponentHand({ cardCount, position, isCurrentTurn = false }: Opp
     return (
         <div
             className={clsx(
-                'relative flex items-center justify-center',
-                isVertical ? 'h-[200px] w-[100px]' : 'h-[100px] w-[280px]'
+                'relative flex items-center justify-center transition-all',
+                isVertical ? 'h-[200px] w-[100px]' : 'h-[100px] w-[280px]',
+                onClick && 'cursor-pointer hover:scale-105 hover:brightness-125'
             )}
+            onClick={onClick}
         >
             {/* Turn indicator glow */}
             {isCurrentTurn && (

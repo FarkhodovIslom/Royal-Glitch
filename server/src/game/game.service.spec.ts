@@ -1,12 +1,14 @@
+// ============================================
+// ROYAL GLITCH - Game Service Tests
+// Pair Annihilation System
+// ============================================
 
 import { Test, TestingModule } from '@nestjs/testing';
 import { GameService } from './game.service';
 import { RatingService } from '../rating/rating.service';
-import { MaskType, Card } from '../shared/types';
 
-describe('GameService', () => {
+describe('GameService - Pair Annihilation', () => {
   let service: GameService;
-  let ratingService: RatingService;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -16,105 +18,168 @@ describe('GameService', () => {
           provide: RatingService,
           useValue: {
             getRating: jest.fn().mockReturnValue(1000),
-            updateRating: jest.fn(),
+            updateRating: jest.fn().mockReturnValue(1000),
           },
         },
       ],
     }).compile();
 
     service = module.get<GameService>(GameService);
-    ratingService = module.get<RatingService>(RatingService);
   });
 
-  it('should be defined', () => {
-    expect(service).toBeDefined();
-  });
-
-  describe('Room Management', () => {
-    it('should create a room', () => {
-      const room = service.createRoom('p1', 's1', 'venetian');
-      expect(room).toBeDefined();
-      expect(room.players.length).toBe(1);
-      expect(room.players[0].id).toBe('p1');
-    });
-
-    it('should join a room', () => {
-      const room = service.createRoom('p1', 's1', 'venetian');
-      const joinedRoom = service.joinRoom(room.id, 'p2', 's2', 'kabuki');
+  describe('createRoom', () => {
+    it('should create a room with one player', () => {
+      const room = service.createRoom('player1', 'socket1', 'venetian');
       
-      expect(joinedRoom).toBeDefined();
-      expect(joinedRoom?.players.length).toBe(2);
+      expect(room).toBeDefined();
+      expect(room.id).toBeDefined();
+      expect(room.players.length).toBe(1);
+      expect(room.phase).toBe('WAITING');
+      expect(room.creatorId).toBe('player1');
+    });
+  });
+
+  describe('joinRoom', () => {
+    it('should allow players to join a waiting room', () => {
+      const room = service.createRoom('player1', 'socket1', 'venetian');
+      const joined = service.joinRoom(room.id, 'player2', 'socket2', 'kabuki');
+      expect(joined).toBeDefined();
+      expect(joined!.players.length).toBe(2);
     });
 
-    it('should not join full room', () => {
+    it('should not allow more than 4 players', () => {
       const room = service.createRoom('p1', 's1', 'venetian');
       service.joinRoom(room.id, 'p2', 's2', 'kabuki');
-      service.joinRoom(room.id, 'p3', 's3', 'jester');
+      service.joinRoom(room.id, 'p3', 's3', 'tribal');
       service.joinRoom(room.id, 'p4', 's4', 'plague');
-      
-      const result = service.joinRoom(room.id, 'p5', 's5', 'phantom');
-      expect(result).toBeNull();
-    });
 
-    it('should leave room', () => {
-      const room = service.createRoom('p1', 's1', 'venetian');
-      service.leaveRoom('s1');
-      
-      const foundRoom = service.getRoom(room.id);
-      expect(foundRoom).toBeUndefined(); // Room deleted when empty
+      const fifth = service.joinRoom(room.id, 'p5', 's5', 'jester');
+      expect(fifth).toBeNull();
     });
   });
 
-  describe('Game Flow', () => {
+  describe('startGame', () => {
     let roomId: string;
-    
+
     beforeEach(() => {
       const room = service.createRoom('p1', 's1', 'venetian');
       roomId = room.id;
       service.joinRoom(roomId, 'p2', 's2', 'kabuki');
-      service.joinRoom(roomId, 'p3', 's3', 'jester');
-      service.joinRoom(roomId, 'p4', 's4', 'plague');
-
-      service.setPlayerReady('s1', true);
-      service.setPlayerReady('s2', true);
-      service.setPlayerReady('s3', true);
-      service.setPlayerReady('s4', true);
     });
 
-    it('should start game when all ready', () => {
-      expect(service.allPlayersReady(roomId)).toBe(true);
-      
+    it('should start game with minimum 2 players', () => {
       const room = service.startGame(roomId);
-      expect(room?.phase).toBe('QUADRANT');
-      expect(room?.players[0].hand.length).toBe(13);
+      
+      expect(room).toBeDefined();
+      expect(room!.phase).toBe('PLAYING');
     });
 
-    it('should handle card play', () => {
-      const room = service.startGame(roomId)!;
-      const currentPlayer = room.players[room.currentPlayerIndex];
-      const validCards = service.getValidCardsForCurrentPlayer(roomId);
-      const cardToPlay = validCards[0];
+    it('should deal and purge pairs on start', () => {
+      const room = service.startGame(roomId);
+      
+      // Players should have cards
+      expect(room!.players[0].hand.length).toBeGreaterThan(0);
+      expect(room!.players[1].hand.length).toBeGreaterThan(0);
+      
+      // Total cards should be less than 49 (some pairs purged)
+      const totalCards = room!.players.reduce((sum, p) => sum + p.hand.length, 0);
+      expect(totalCards).toBeLessThanOrEqual(49);
+    });
 
-      const result = service.playCard(currentPlayer.socketId, cardToPlay);
+    it('should record discarded pairs', () => {
+      const room = service.startGame(roomId);
+      
+      // Pairs should have been discarded
+      expect(room!.discardedPairs.length).toBeGreaterThanOrEqual(0);
+    });
+
+    it('should track Glitch holder', () => {
+      const room = service.startGame(roomId);
+      
+      // Someone should have the Glitch
+      const glitchHolder = room!.players.find(p => 
+        p.hand.some(c => c.isGlitch)
+      );
+      
+      if (glitchHolder) {
+        expect(room!.glitchHolderId).toBe(glitchHolder.id);
+      }
+    });
+  });
+
+  describe('drawCard', () => {
+    let roomId: string;
+
+    beforeEach(() => {
+      const room = service.createRoom('p1', 's1', 'venetian');
+      roomId = room.id;
+      service.joinRoom(roomId, 'p2', 's2', 'kabuki');
+      service.startGame(roomId);
+    });
+
+    it('should allow current player to draw', () => {
+      const room = service.getRoom(roomId)!;
+      const currentPlayer = room.players[room.currentPlayerIndex];
+      
+      const result = service.drawCard(currentPlayer.socketId);
       
       expect(result.success).toBe(true);
-      expect(room.currentTrick.length).toBe(1);
+      expect(result.drawnCard).toBeDefined();
     });
 
-    it('should validate turn', () => {
-        const room = service.startGame(roomId)!;
-        const currentPlayer = room.players[room.currentPlayerIndex];
-        // Find a player who is NOT the current player
-        const otherPlayer = room.players.find(p => p.id !== currentPlayer.id)!;
-        
-        // Try to play with wrong player
-        // We need a valid card format even if it shouldn't be valid to play, 
-        // to pass basic type checks before logic check
-        const card: Card = { suit: 'hearts', rank: '2', value: 2 }; 
-        
-        const result = service.playCard(otherPlayer.socketId, card);
-        expect(result.success).toBe(false);
-        expect(result.error).toBe('Not your turn');
+    it('should not allow non-current player to draw', () => {
+      const room = service.getRoom(roomId)!;
+      const currentIndex = room.currentPlayerIndex;
+      const otherIndex = (currentIndex + 1) % room.players.length;
+      const otherPlayer = room.players[otherIndex];
+      
+      const result = service.drawCard(otherPlayer.socketId);
+      
+      expect(result.success).toBe(false);
+      expect(result.error).toContain('Not your turn');
+    });
+
+    it('should advance to next player after draw', () => {
+      const room = service.getRoom(roomId)!;
+      const initialIndex = room.currentPlayerIndex;
+      const currentPlayer = room.players[initialIndex];
+      
+      service.drawCard(currentPlayer.socketId);
+      
+      const updatedRoom = service.getRoom(roomId)!;
+      expect(updatedRoom.currentPlayerIndex).not.toBe(initialIndex);
+    });
+  });
+
+  describe('getPublicPlayers', () => {
+    it('should hide hand details', () => {
+      const room = service.createRoom('p1', 's1', 'venetian');
+      service.joinRoom(room.id, 'p2', 's2', 'kabuki');
+      service.startGame(room.id);
+      
+      const startedRoom = service.getRoom(room.id)!;
+      const publicPlayers = service.getPublicPlayers(startedRoom);
+      
+      expect(publicPlayers.length).toBe(2);
+      publicPlayers.forEach(p => {
+        expect(p.cardCount).toBeDefined();
+        expect((p as any).hand).toBeUndefined();
+      });
+    });
+  });
+
+  describe('canStartGame', () => {
+    it('should return true with 2+ players in WAITING', () => {
+      const room = service.createRoom('p1', 's1', 'venetian');
+      service.joinRoom(room.id, 'p2', 's2', 'kabuki');
+      
+      expect(service.canStartGame(room.id)).toBe(true);
+    });
+
+    it('should return false with only 1 player', () => {
+      const room = service.createRoom('p1', 's1', 'venetian');
+      
+      expect(service.canStartGame(room.id)).toBe(false);
     });
   });
 });

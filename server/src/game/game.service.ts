@@ -5,52 +5,40 @@ import {
   Card, 
   Phase, 
   MaskType, 
-  PlayedCard,
-  Trick,
   PublicPlayer,
   PlayerStanding,
-  PHASE_CONFIGS,
+  DiscardedPair,
+  DrawAction,
+  RATING_CHANGES,
 } from '../shared/types';
 import {
   createDeck,
   deal,
-  removeCards,
-  removeCardFromHand,
-  cardEquals,
+  isGlitch,
+  drawRandomCard,
+  removeCardByIndex,
+  sortHand,
+  cardToString,
 } from '../engine/deck';
 import {
-  canPlayCard,
-  determineTrickWinner,
-  getValidCards,
-  findFirstLeader,
+  purgePairs,
+  processDrawnCard,
+  isGameOver,
+  getNextPlayer,
+  getPreviousPlayer,
+  countActivePlayers,
 } from '../engine/rules';
-import {
-  calculateTrickDamage,
-  applyDamage,
-} from '../engine/damage';
-import {
-  getPhaseConfig,
-  determineEliminated,
-  advancePhase,
-  getPlacement,
-  calculateRatingChange,
-  resetIntegrity,
-  clearPhaseData,
-  getActivePlayers,
-  generateFinalStandings,
-} from '../engine/phase';
 import { RatingService } from '../rating/rating.service';
 
 @Injectable()
 export class GameService {
   private rooms: Map<string, GameRoom> = new Map();
-  private playerRoomMap: Map<string, string> = new Map(); // socketId -> roomId
-  private eliminations: Map<string, { playerId: string; placement: number }[]> = new Map();
+  private playerRoomMap: Map<string, string> = new Map();
 
   constructor(private readonly ratingService: RatingService) {}
 
   // Generate unique room ID
-  generateRoomId(): string {
+  private generateRoomId(): string {
     return Math.random().toString(36).substring(2, 8).toUpperCase();
   }
 
@@ -63,31 +51,26 @@ export class GameService {
       socketId,
       maskType,
       hand: [],
-      integrity: 100,
       isEliminated: false,
       isReady: false,
       rating: this.ratingService.getRating(playerId),
-      tricksWon: [],
+      hasWon: false,
     };
 
     const room: GameRoom = {
       id: roomId,
-      creatorId: playerId, // Track who created the room
+      creatorId: playerId,
       phase: 'WAITING',
       players: [player],
-      currentTrick: [],
-      tricks: [],
       currentPlayerIndex: 0,
-      heartsBroken: false,
-      leadSuit: null,
-      phaseNumber: 0,
+      discardedPairs: [],
+      drawHistory: [],
+      roundNumber: 0,
     };
 
     this.rooms.set(roomId, room);
     this.playerRoomMap.set(socketId, roomId);
-    this.eliminations.set(roomId, []);
 
-    console.log(`🎴 Room ${roomId} created by player ${playerId}`);
     return room;
   }
 
@@ -95,43 +78,25 @@ export class GameService {
   joinRoom(roomId: string, playerId: string, socketId: string, maskType: MaskType): GameRoom | null {
     const room = this.rooms.get(roomId);
     
-    if (!room) {
-      console.log(`❌ Room ${roomId} not found`);
-      return null;
-    }
-
-    if (room.phase !== 'WAITING') {
-      console.log(`❌ Room ${roomId} game already in progress`);
-      return null;
-    }
-
-    if (room.players.length >= 4) {
-      console.log(`❌ Room ${roomId} is full`);
-      return null;
-    }
-
-    // Check if player already in room
-    if (room.players.some(p => p.id === playerId)) {
-      console.log(`❌ Player ${playerId} already in room ${roomId}`);
-      return null;
-    }
+    if (!room) return null;
+    if (room.phase !== 'WAITING') return null;
+    if (room.players.length >= 4) return null;
+    if (room.players.some(p => p.id === playerId)) return null;
 
     const player: Player = {
       id: playerId,
       socketId,
       maskType,
       hand: [],
-      integrity: 100,
       isEliminated: false,
       isReady: false,
       rating: this.ratingService.getRating(playerId),
-      tricksWon: [],
+      hasWon: false,
     };
 
     room.players.push(player);
     this.playerRoomMap.set(socketId, roomId);
 
-    console.log(`🎴 Player ${playerId} joined room ${roomId} (${room.players.length}/4)`);
     return room;
   }
 
@@ -146,20 +111,22 @@ export class GameService {
     const playerIndex = room.players.findIndex(p => p.socketId === socketId);
     if (playerIndex === -1) return null;
 
-    const player = room.players[playerIndex];
+    const playerId = room.players[playerIndex].id;
     room.players.splice(playerIndex, 1);
     this.playerRoomMap.delete(socketId);
 
-    console.log(`🚪 Player ${player.id} left room ${roomId}`);
-
-    // Delete room if empty
+    // Clean up empty rooms
     if (room.players.length === 0) {
       this.rooms.delete(roomId);
-      this.eliminations.delete(roomId);
-      console.log(`🗑️ Room ${roomId} deleted (empty)`);
+      return { room, playerId };
     }
 
-    return { room, playerId: player.id };
+    // Transfer creator if needed
+    if (room.creatorId === playerId && room.players.length > 0) {
+      room.creatorId = room.players[0].id;
+    }
+
+    return { room, playerId };
   }
 
   // Set player ready status
@@ -181,79 +148,79 @@ export class GameService {
   allPlayersReady(roomId: string): boolean {
     const room = this.rooms.get(roomId);
     if (!room) return false;
-    return room.players.length === 4 && room.players.every(p => p.isReady);
+    return room.players.every(p => p.isReady);
   }
 
   // Start the game
   startGame(roomId: string): GameRoom | null {
     const room = this.rooms.get(roomId);
     if (!room) return null;
+    if (room.phase !== 'WAITING') return null;
+    if (room.players.length < 2) return null; // Minimum 2 players
 
-    if (room.players.length !== 4) {
-      console.log(`❌ Cannot start: need 4 players, have ${room.players.length}`);
-      return null;
-    }
+    room.phase = 'PLAYING';
+    room.roundNumber = 1;
+    this.dealAndPurge(room);
 
-    room.phase = 'QUADRANT';
-    room.phaseNumber = 1;
-    this.startPhase(room);
-
-    console.log(`🎮 Game started in room ${roomId}`);
     return room;
   }
 
-  // Start a phase (deal cards, set first player)
-  private startPhase(room: GameRoom): void {
-    const config = getPhaseConfig(room.phase);
-    if (!config) return;
-
-    // Reset for new phase
-    room.currentTrick = [];
-    room.tricks = [];
-    room.heartsBroken = false;
-    room.leadSuit = null;
-
-    // Clear player data and reset integrity
-    const activePlayers = getActivePlayers(room.players);
-    resetIntegrity(room.players);
-    clearPhaseData(room.players);
-
-    // Build and deal deck
-    let deck = createDeck();
-    if (config.removeCards.length > 0) {
-      deck = removeCards(deck, config.removeCards);
-    }
-
-    const hands = deal(deck, config.cardsPerPlayer, activePlayers.length);
+  // Deal cards and auto-purge pairs
+  dealAndPurge(room: GameRoom): Map<string, { pairs: [Card, Card][]; remaining: Card[] }> {
+    // Create 49-card deck and deal
+    const deck = createDeck();
+    const hands = deal(deck, room.players.length);
     
-    // Assign hands to active players
-    activePlayers.forEach((player, index) => {
-      player.hand = hands[index];
+    const purgeResults = new Map<string, { pairs: [Card, Card][]; remaining: Card[] }>();
+
+    // Assign hands and purge pairs
+    room.players.forEach((player, index) => {
+      const { pairs, remaining } = purgePairs(hands[index]);
+      
+      // Record discarded pairs
+      for (const pair of pairs) {
+        room.discardedPairs.push({
+          playerId: player.id,
+          cards: pair,
+          timestamp: Date.now(),
+        });
+      }
+
+      // Set player's hand to remaining cards
+      player.hand = remaining;
+      sortHand(player.hand);
+      player.hasWon = player.hand.length === 0;
+      
+      // Track who has the Glitch
+      if (player.hand.some(c => isGlitch(c))) {
+        room.glitchHolderId = player.id;
+      }
+
+      purgeResults.set(player.id, { pairs, remaining });
+
+      console.log(`[DEAL] ${player.maskType}: ${hands[index].length} cards -> purged ${pairs.length} pairs -> ${remaining.length} remaining`);
     });
 
-    // Find first leader (player with 2♣ or 3♣)
-    const activeHands = activePlayers.map(p => p.hand);
-    const firstLeaderIndex = findFirstLeader(activeHands);
-    
-    // Set current player to the first leader
-    const firstLeader = activePlayers[firstLeaderIndex];
-    room.currentPlayerIndex = room.players.findIndex(p => p.id === firstLeader.id);
+    // Set first player (random)
+    room.currentPlayerIndex = Math.floor(Math.random() * room.players.length);
 
-    console.log(`📦 Phase ${room.phase} started: ${activePlayers.length} players, ${config.cardsPerPlayer} cards each`);
+    return purgeResults;
   }
 
-  // Play a card
-  playCard(socketId: string, card: Card): {
+  // Draw a card from previous player
+  drawCard(socketId: string, cardIndex?: number): {
     success: boolean;
     room?: GameRoom;
-    playerId?: string;
-    trickComplete?: boolean;
-    trickWinner?: string;
-    trickDamage?: Record<string, number>;
-    phaseComplete?: boolean;
-    eliminatedId?: string;
-    gameOver?: boolean;
-    finalStandings?: PlayerStanding[];
+    drawerId?: string;
+    targetId?: string;
+    drawnCard?: Card;
+    formedPair?: boolean;
+    matchedCard?: Card;
+    playerEmptied?: boolean;
+    roundOver?: boolean;
+    loserId?: string;
+    glitchCard?: Card;
+    standings?: PlayerStanding[];
     error?: string;
   } {
     const roomId = this.playerRoomMap.get(socketId);
@@ -261,218 +228,193 @@ export class GameService {
 
     const room = this.rooms.get(roomId);
     if (!room) return { success: false, error: 'Room not found' };
+    if (room.phase !== 'PLAYING') return { success: false, error: 'Game not in progress' };
 
-    const player = room.players.find(p => p.socketId === socketId);
-    if (!player) return { success: false, error: 'Player not found' };
-
-    // Check if it's this player's turn
+    // Verify it's this player's turn
     const currentPlayer = room.players[room.currentPlayerIndex];
-    if (currentPlayer.id !== player.id) {
+    if (currentPlayer.socketId !== socketId) {
       return { success: false, error: 'Not your turn' };
     }
 
-    // Validate card play
-    const isFirstTrick = room.tricks.length === 0 && room.currentTrick.length === 0;
-    const isLeading = room.currentTrick.length === 0;
-    const ledSuit = room.currentTrick.length > 0 ? room.currentTrick[0].card.suit : null;
-
-    const validation = canPlayCard(
-      card,
-      player.hand,
-      ledSuit,
-      room.heartsBroken,
-      isFirstTrick,
-      isLeading
-    );
-
-    if (!validation.valid) {
-      return { success: false, error: validation.reason };
+    // Skip if player has no cards (already won)
+    if (currentPlayer.hand.length === 0) {
+      this.advanceToNextPlayer(room);
+      return { success: true, room, drawerId: currentPlayer.id, playerEmptied: true };
     }
 
-    // Play the card
-    const playedCard: PlayedCard = { playerId: player.id, card };
-    room.currentTrick.push(playedCard);
-    player.hand = removeCardFromHand(player.hand, card);
+    // Get previous player (who we draw from)
+    const allHands = room.players.map(p => p.hand);
+    const prevPlayerIndex = getPreviousPlayer(room.currentPlayerIndex, allHands, room.players.length);
+    const targetPlayer = room.players[prevPlayerIndex];
 
-    // Set lead suit if first card
-    if (room.currentTrick.length === 1) {
-      room.leadSuit = card.suit;
+    // Skip if target has no cards
+    if (targetPlayer.hand.length === 0) {
+      this.advanceToNextPlayer(room);
+      return { success: true, room, drawerId: currentPlayer.id };
     }
 
-    // Check if hearts broken
-    if (card.suit === 'hearts') {
-      room.heartsBroken = true;
+    // Draw a random card from target (or specific index if provided)
+    let drawIndex: number;
+    if (cardIndex !== undefined && cardIndex >= 0 && cardIndex < targetPlayer.hand.length) {
+      drawIndex = cardIndex; // Allow specific pick for testing
+    } else {
+      drawIndex = Math.floor(Math.random() * targetPlayer.hand.length);
     }
 
-    console.log(`🃏 ${player.id} played ${card.rank}${card.suit}`);
+    const drawnCard = targetPlayer.hand[drawIndex];
+    
+    // Remove card from target's hand
+    targetPlayer.hand = removeCardByIndex(targetPlayer.hand, drawIndex);
 
-    // Check if trick is complete
-    const activePlayers = getActivePlayers(room.players);
-    if (room.currentTrick.length === activePlayers.length) {
-      return this.completeTrick(room, player.id);
+    // Process the drawn card
+    const result = processDrawnCard(currentPlayer.hand, drawnCard);
+    currentPlayer.hand = result.newHand;
+    sortHand(currentPlayer.hand);
+
+    // Record the draw action
+    const drawAction: DrawAction = {
+      drawerId: currentPlayer.id,
+      targetId: targetPlayer.id,
+      drawnCard,
+      formedPair: result.formedPair,
+      matchedCard: result.matchedCard || undefined,
+      timestamp: Date.now(),
+    };
+    room.drawHistory.push(drawAction);
+
+    // If pair formed, record it
+    if (result.formedPair && result.matchedCard) {
+      room.discardedPairs.push({
+        playerId: currentPlayer.id,
+        cards: [drawnCard, result.matchedCard],
+        timestamp: Date.now(),
+      });
     }
 
-    // Move to next player
+    // Update Glitch holder tracking
+    this.updateGlitchHolder(room);
+
+    // Check if current player emptied their hand
+    const playerEmptied = currentPlayer.hand.length === 0;
+    if (playerEmptied) {
+      currentPlayer.hasWon = true;
+      console.log(`[WIN] ${currentPlayer.maskType} emptied their hand!`);
+    }
+
+    // Check for game over
+    const gameOverCheck = isGameOver(room.players.map(p => p.hand));
+    if (gameOverCheck.over) {
+      return this.endRound(room, gameOverCheck.loserIndex, drawnCard, result);
+    }
+
+    // Advance to next player
     this.advanceToNextPlayer(room);
 
-    return { success: true, room, playerId: player.id };
+    console.log(`[DRAW] ${currentPlayer.maskType} drew ${cardToString(drawnCard)} from ${targetPlayer.maskType} - pair: ${result.formedPair}`);
+
+    return {
+      success: true,
+      room,
+      drawerId: currentPlayer.id,
+      targetId: targetPlayer.id,
+      drawnCard,
+      formedPair: result.formedPair,
+      matchedCard: result.matchedCard || undefined,
+      playerEmptied,
+    };
   }
 
-  // Complete a trick
-  private completeTrick(room: GameRoom, lastPlayerId: string): {
+  // End the round
+  private endRound(
+    room: GameRoom, 
+    loserIndex: number,
+    drawnCard: Card,
+    drawResult: { formedPair: boolean; matchedCard: Card | null }
+  ): {
     success: boolean;
     room: GameRoom;
-    playerId: string;
-    trickComplete: true;
-    trickWinner: string;
-    trickDamage: Record<string, number>;
-    phaseComplete?: boolean;
-    eliminatedId?: string;
-    gameOver?: boolean;
-    finalStandings?: PlayerStanding[];
+    drawerId: string;
+    targetId: string;
+    drawnCard: Card;
+    formedPair: boolean;
+    matchedCard?: Card;
+    roundOver: boolean;
+    loserId: string;
+    glitchCard: Card;
+    standings: PlayerStanding[];
   } {
-    const winnerId = determineTrickWinner(room.currentTrick);
-    const trick: Trick = {
-      cards: [...room.currentTrick],
-      winnerId,
-    };
-    room.tricks.push(trick);
+    const loser = room.players[loserIndex];
+    const glitchCard = loser.hand[0]; // Should be The Glitch
 
-    // Give cards to winner (damage calculated at end of phase)
-    const winner = room.players.find(p => p.id === winnerId);
-    if (winner) {
-      const trickCards = room.currentTrick.map(pc => pc.card);
-      winner.tricksWon.push(trickCards);
+    console.log(`[ROUND OVER] ${loser.maskType} is eliminated with The Glitch!`);
+
+    // Mark loser as eliminated
+    loser.isEliminated = true;
+
+    // Calculate standings
+    const standings = this.calculateStandings(room);
+
+    // Apply rating changes
+    for (const standing of standings) {
+      this.ratingService.updateRating(standing.playerId, standing.ratingChange);
     }
 
-    // Build damage record
-    const trickDamage: Record<string, number> = {};
+    room.phase = 'GAME_OVER';
+
+    const currentPlayer = room.players[room.currentPlayerIndex];
+    const prevIndex = getPreviousPlayer(room.currentPlayerIndex, room.players.map(p => p.hand), room.players.length);
+    const targetPlayer = room.players[prevIndex];
+
+    return {
+      success: true,
+      room,
+      drawerId: currentPlayer.id,
+      targetId: targetPlayer.id,
+      drawnCard,
+      formedPair: drawResult.formedPair,
+      matchedCard: drawResult.matchedCard || undefined,
+      roundOver: true,
+      loserId: loser.id,
+      glitchCard,
+      standings,
+    };
+  }
+
+  // Calculate final standings
+  private calculateStandings(room: GameRoom): PlayerStanding[] {
+    const standings: PlayerStanding[] = [];
+
     for (const player of room.players) {
-      trickDamage[player.id] = player.integrity;
+      const isLoser = player.isEliminated;
+      const ratingChange = isLoser ? RATING_CHANGES.LOSER : RATING_CHANGES.WINNER;
+      const newRating = Math.max(0, player.rating + ratingChange);
+
+      standings.push({
+        playerId: player.id,
+        placement: isLoser ? room.players.length : 1, // Winners all get 1st
+        isLoser,
+        ratingChange,
+        newRating,
+      });
     }
 
-    console.log(`✅ Trick won by ${winnerId}`);
-
-    // Clear trick
-    room.currentTrick = [];
-    room.leadSuit = null;
-
-    // Check if phase is complete (all cards played)
-    const activePlayers = getActivePlayers(room.players);
-    const allCardsPlayed = activePlayers.every(p => p.hand.length === 0);
-
-    if (allCardsPlayed) {
-      return {
-        ...this.completePhase(room),
-        trickComplete: true,
-        trickWinner: winnerId,
-        trickDamage,
-        playerId: lastPlayerId,
-      };
-    }
-
-    // Set winner as next player
-    room.currentPlayerIndex = room.players.findIndex(p => p.id === winnerId);
-
-    return {
-      success: true,
-      room,
-      playerId: lastPlayerId,
-      trickComplete: true,
-      trickWinner: winnerId,
-      trickDamage,
-    };
+    return standings;
   }
 
-  // Complete a phase
-  private completePhase(room: GameRoom): {
-    success: boolean;
-    room: GameRoom;
-    phaseComplete: boolean;
-    eliminatedId?: string;
-    gameOver?: boolean;
-    finalStandings?: PlayerStanding[];
-  } {
-    const activePlayers = getActivePlayers(room.players);
-    
-    // Calculate damage for all players based on cards collected during phase
-    for (const player of activePlayers) {
-      const allCollectedCards = player.tricksWon.flat();
-      const totalDamage = calculateTrickDamage(allCollectedCards);
-      player.integrity = applyDamage(100, totalDamage);
-    }
-
-    console.log(`📊 Phase damage calculated:`, activePlayers.map(p => `${p.id}: ${p.integrity}%`).join(', '));
-    
-    // Determine eliminated player (lowest integrity)
-    const eliminated = determineEliminated(activePlayers);
-    eliminated.isEliminated = true;
-    
-    const placement = getPlacement(room.phase);
-    const ratingChange = calculateRatingChange(placement as 1 | 2 | 3 | 4);
-    
-    // Update rating
-    this.ratingService.updateRating(eliminated.id, ratingChange);
-    eliminated.rating = this.ratingService.getRating(eliminated.id);
-
-    // Track elimination
-    const roomEliminations = this.eliminations.get(room.id) || [];
-    roomEliminations.push({ playerId: eliminated.id, placement });
-    this.eliminations.set(room.id, roomEliminations);
-
-    console.log(`💀 ${eliminated.id} eliminated at ${placement}th place (${ratingChange} rating)`);
-
-    // Check if game over
-    const remainingPlayers = getActivePlayers(room.players);
-    if (remainingPlayers.length <= 1) {
-      // Game over - crown the winner
-      const winner = remainingPlayers[0];
-      if (winner) {
-        const winnerRatingChange = calculateRatingChange(1);
-        this.ratingService.updateRating(winner.id, winnerRatingChange);
-        winner.rating = this.ratingService.getRating(winner.id);
+  // Update Glitch holder tracking
+  private updateGlitchHolder(room: GameRoom): void {
+    for (const player of room.players) {
+      if (player.hand.some(c => isGlitch(c))) {
+        room.glitchHolderId = player.id;
+        return;
       }
-
-      room.phase = 'GAME_OVER';
-      const finalStandings = generateFinalStandings(room.players, roomEliminations);
-
-      console.log(`🏆 Game over! Winner: ${winner?.id}`);
-
-      return {
-        success: true,
-        room,
-        phaseComplete: true,
-        eliminatedId: eliminated.id,
-        gameOver: true,
-        finalStandings,
-      };
     }
-
-    // Advance to next phase
-    room.phase = advancePhase(room.phase);
-    room.phaseNumber++;
-    this.startPhase(room);
-
-    console.log(`📈 Advancing to phase ${room.phase}`);
-
-    return {
-      success: true,
-      room,
-      phaseComplete: true,
-      eliminatedId: eliminated.id,
-    };
   }
 
   // Advance to next active player
-  private advanceToNextPlayer(room: GameRoom): void {
-    const activePlayers = getActivePlayers(room.players);
-    let nextIndex = room.currentPlayerIndex;
-
-    do {
-      nextIndex = (nextIndex + 1) % room.players.length;
-    } while (room.players[nextIndex].isEliminated);
-
-    room.currentPlayerIndex = nextIndex;
+  advanceToNextPlayer(room: GameRoom): void {
+    const hands = room.players.map(p => p.hand);
+    room.currentPlayerIndex = getNextPlayer(room.currentPlayerIndex, hands, room.players.length);
   }
 
   // Get current player
@@ -482,25 +424,14 @@ export class GameService {
     return room.players[room.currentPlayerIndex];
   }
 
-  // Get valid cards for current player
-  getValidCardsForCurrentPlayer(roomId: string): Card[] {
+  // Get the target player (who current player draws from)
+  getDrawTarget(roomId: string): Player | null {
     const room = this.rooms.get(roomId);
-    if (!room) return [];
-
-    const player = room.players[room.currentPlayerIndex];
-    if (!player || player.isEliminated) return [];
-
-    const isFirstTrick = room.tricks.length === 0 && room.currentTrick.length === 0;
-    const isLeading = room.currentTrick.length === 0;
-    const ledSuit = room.currentTrick.length > 0 ? room.currentTrick[0].card.suit : null;
-
-    return getValidCards(
-      player.hand,
-      ledSuit,
-      room.heartsBroken,
-      isFirstTrick,
-      isLeading
-    );
+    if (!room) return null;
+    
+    const hands = room.players.map(p => p.hand);
+    const prevIndex = getPreviousPlayer(room.currentPlayerIndex, hands, room.players.length);
+    return room.players[prevIndex];
   }
 
   // Get public player data (hide hands)
@@ -508,11 +439,11 @@ export class GameService {
     return room.players.map(p => ({
       id: p.id,
       maskType: p.maskType,
-      integrity: p.integrity,
       isEliminated: p.isEliminated,
       isReady: p.isReady,
       rating: p.rating,
       cardCount: p.hand.length,
+      hasWon: p.hasWon,
     }));
   }
 
@@ -530,32 +461,31 @@ export class GameService {
 
   // Get all rooms (for lobby)
   getAllRooms(): { id: string; playerCount: number; phase: Phase }[] {
-    const rooms: { id: string; playerCount: number; phase: Phase }[] = [];
+    const roomList: { id: string; playerCount: number; phase: Phase }[] = [];
     
     this.rooms.forEach((room, id) => {
-      rooms.push({
+      roomList.push({
         id,
         playerCount: room.players.length,
         phase: room.phase,
       });
     });
 
-    return rooms;
+    return roomList;
   }
 
   // Check if player is room creator
   isRoomCreator(socketId: string): boolean {
     const room = this.getRoomBySocketId(socketId);
     if (!room) return false;
-    
     const player = room.players.find(p => p.socketId === socketId);
     return player?.id === room.creatorId;
   }
 
-  // Check if game can be started (4 players in room)
+  // Check if game can be started (minimum 2 players)
   canStartGame(roomId: string): boolean {
     const room = this.rooms.get(roomId);
-    return room?.players.length === 4 && room.phase === 'WAITING';
+    return room ? room.players.length >= 2 && room.phase === 'WAITING' : false;
   }
 
   // Get creator ID for a room

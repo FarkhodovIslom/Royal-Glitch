@@ -9,11 +9,11 @@ import {
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
 import { GameService } from './game.service';
-import { Card, MaskType } from '../shared/types';
+import { MaskType } from '../shared/types';
 
 @WebSocketGateway({
   cors: {
-    origin: process.env.CLIENT_URL || 'http://localhost:3000',
+    origin: '*',
     credentials: true,
   },
 })
@@ -24,16 +24,14 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
   constructor(private readonly gameService: GameService) {}
 
   handleConnection(client: Socket) {
-    console.log(`🔌 Client connected: ${client.id}`);
+    console.log(`[WS] Client connected: ${client.id}`);
   }
 
   handleDisconnect(client: Socket) {
-    console.log(`🔌 Client disconnected: ${client.id}`);
-    
+    console.log(`[WS] Client disconnected: ${client.id}`);
     const result = this.gameService.leaveRoom(client.id);
     if (result) {
-      const { room, playerId } = result;
-      this.server.to(room.id).emit('player_left', { playerId });
+      this.server.to(result.room.id).emit('player_left', { playerId: result.playerId });
     }
   }
 
@@ -43,16 +41,18 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @MessageBody() data: { playerId: string; maskType: MaskType },
   ) {
     const room = this.gameService.createRoom(data.playerId, client.id, data.maskType);
-    
     client.join(room.id);
     client.emit('room_created', { roomId: room.id });
-    client.emit('room_joined', {
-      roomId: room.id,
+    
+    // Also emit room_joined so the creator has the initial state
+    const publicPlayers = this.gameService.getPublicPlayers(room);
+    client.emit('room_joined', { 
+      roomId: room.id, 
       creatorId: room.creatorId,
-      players: this.gameService.getPublicPlayers(room),
+      players: publicPlayers 
     });
-
-    return { roomId: room.id };
+    
+    console.log(`[ROOM] Created: ${room.id} by ${data.maskType}`);
   }
 
   @SubscribeMessage('join_room')
@@ -64,257 +64,201 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
     
     if (!room) {
       client.emit('error', { message: 'Could not join room' });
-      return { success: false };
+      return;
     }
 
     client.join(room.id);
     
-    // Notify existing players
-    const newPlayer = room.players.find(p => p.id === data.playerId);
+    const publicPlayers = this.gameService.getPublicPlayers(room);
+    client.emit('room_joined', { roomId: room.id, players: publicPlayers });
+
+    const newPlayer = publicPlayers.find(p => p.id === data.playerId);
     if (newPlayer) {
-      client.to(room.id).emit('player_joined', {
-        player: {
-          id: newPlayer.id,
-          maskType: newPlayer.maskType,
-          integrity: newPlayer.integrity,
-          isEliminated: newPlayer.isEliminated,
-          isReady: newPlayer.isReady,
-          rating: newPlayer.rating,
-          cardCount: 0,
-        },
-      });
+      client.to(room.id).emit('player_joined', { player: newPlayer });
     }
 
-    // Send room state to new player
-    client.emit('room_joined', {
-      roomId: room.id,
-      creatorId: room.creatorId,
-      players: this.gameService.getPublicPlayers(room),
-    });
-
-    return { success: true };
+    console.log(`[ROOM] ${data.maskType} joined ${room.id} (${room.players.length}/4)`);
   }
 
   @SubscribeMessage('leave_room')
   handleLeaveRoom(@ConnectedSocket() client: Socket) {
     const result = this.gameService.leaveRoom(client.id);
-    
     if (result) {
-      const { room, playerId } = result;
-      client.leave(room.id);
-      this.server.to(room.id).emit('player_left', { playerId });
+      client.leave(result.room.id);
+      this.server.to(result.room.id).emit('player_left', { playerId: result.playerId });
     }
-
-    return { success: true };
   }
 
   @SubscribeMessage('player_ready')
   handlePlayerReady(@ConnectedSocket() client: Socket) {
     const result = this.gameService.setPlayerReady(client.id, true);
-    
-    if (!result) {
-      return { success: false };
-    }
+    if (!result) return;
 
-    const { room, playerId } = result;
-
-    // Notify all players of ready status change
-    this.server.to(room.id).emit('player_ready_change', {
-      playerId,
+    this.server.to(result.room.id).emit('player_ready_change', {
+      playerId: result.playerId,
       isReady: true,
     });
 
-    // Check if all players ready - start game
-    if (this.gameService.allPlayersReady(room.id)) {
-      const startedRoom = this.gameService.startGame(room.id);
-      
-      if (startedRoom) {
-        // Notify game started
-        this.server.to(room.id).emit('game_started', { phase: startedRoom.phase });
-
-        // Send hands to each player
-        for (const player of startedRoom.players) {
-          this.server.to(player.socketId).emit('hand_dealt', {
-            cards: player.hand,
-          });
-        }
-
-        // Notify current player it's their turn
-        this.notifyCurrentPlayerTurn(startedRoom.id);
-      }
-    }
-
-    return { success: true };
+    console.log(`[READY] ${result.playerId} is ready`);
   }
 
   @SubscribeMessage('start_game')
   handleStartGame(@ConnectedSocket() client: Socket) {
-    // Verify caller is room creator
+    // Verify creator
     if (!this.gameService.isRoomCreator(client.id)) {
-      client.emit('error', { message: 'Only the room creator can start the game' });
-      return { success: false };
+      client.emit('error', { message: 'Only room creator can start the game' });
+      return;
     }
 
     const room = this.gameService.getRoomBySocketId(client.id);
     if (!room) {
       client.emit('error', { message: 'Room not found' });
-      return { success: false };
+      return;
     }
 
-    // Verify 4 players are in room
     if (!this.gameService.canStartGame(room.id)) {
-      client.emit('error', { message: 'Need 4 players to start the game' });
-      return { success: false };
+      client.emit('error', { message: 'Cannot start game (need at least 2 players)' });
+      return;
     }
 
+    // Start game - this deals cards and purges pairs
     const startedRoom = this.gameService.startGame(room.id);
-    
-    if (startedRoom) {
-      // Notify game started
-      this.server.to(room.id).emit('game_started', { phase: startedRoom.phase });
+    if (!startedRoom) {
+      client.emit('error', { message: 'Failed to start game' });
+      return;
+    }
 
-      // Send hands to each player
-      for (const player of startedRoom.players) {
-        this.server.to(player.socketId).emit('hand_dealt', {
-          cards: player.hand,
+    // Notify all players
+    this.server.to(room.id).emit('game_started', { phase: startedRoom.phase });
+
+    // Send each player their hand
+    for (const player of startedRoom.players) {
+      const playerSocket = this.server.sockets.sockets.get(player.socketId);
+      if (playerSocket) {
+        playerSocket.emit('hand_dealt', { cards: player.hand });
+      }
+    }
+
+    // Emit pairs purged for each player
+    for (const player of startedRoom.players) {
+      const pairRecord = startedRoom.discardedPairs.filter(d => d.playerId === player.id);
+      if (pairRecord.length > 0) {
+        this.server.to(room.id).emit('pairs_purged', {
+          playerId: player.id,
+          pairs: pairRecord.map(r => r.cards),
+          remainingCount: player.hand.length,
         });
       }
-
-      // Notify current player it's their turn
-      this.notifyCurrentPlayerTurn(startedRoom.id);
     }
 
-    return { success: true };
+    console.log(`[GAME] Started in room ${room.id} with ${startedRoom.players.length} players`);
+
+    // Notify first player of their turn
+    this.notifyCurrentPlayerTurn(room.id);
   }
 
-  @SubscribeMessage('play_card')
-  handlePlayCard(
+  @SubscribeMessage('draw_card')
+  handleDrawCard(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { card: Card },
+    @MessageBody() data: { cardIndex?: number },
   ) {
-    const result = this.gameService.playCard(client.id, data.card);
+    const result = this.gameService.drawCard(client.id, data.cardIndex);
 
     if (!result.success) {
-      client.emit('invalid_move', { reason: result.error || 'Invalid move' });
-      return { success: false };
+      client.emit('invalid_move', { reason: result.error || 'Invalid draw' });
+      return;
     }
 
     const room = result.room!;
 
-    // Broadcast card played
-    this.server.to(room.id).emit('card_played', {
-      playerId: result.playerId,
-      card: data.card,
-    });
+    // Broadcast the draw result
+    if (result.drawnCard) {
+      const drawerPlayer = room.players.find(p => p.id === result.drawerId);
+      const targetPlayer = room.players.find(p => p.id === result.targetId);
 
-    // If trick complete
-    if (result.trickComplete) {
-      this.server.to(room.id).emit('trick_complete', {
-        winnerId: result.trickWinner,
-        cards: room.tricks[room.tricks.length - 1]?.cards || [],
-        damage: result.trickDamage,
+      this.server.to(room.id).emit('card_drawn', {
+        drawerId: result.drawerId,
+        targetId: result.targetId,
+        formedPair: result.formedPair || false,
+        pair: result.formedPair && result.matchedCard 
+          ? [result.drawnCard, result.matchedCard] as [any, any]
+          : undefined,
+        drawerCardCount: drawerPlayer?.hand.length || 0,
+        targetCardCount: targetPlayer?.hand.length || 0,
       });
 
-      // Send integrity updates
-      for (const player of room.players) {
-        this.server.to(room.id).emit('integrity_update', {
-          playerId: player.id,
-          integrity: player.integrity,
-        });
-      }
-
-      // Trigger mask emotions for damage taken
-      const winner = room.players.find(p => p.id === result.trickWinner);
-      if (winner && result.trickDamage) {
-        const oldIntegrity = result.trickDamage[winner.id];
-        if (winner.integrity < oldIntegrity) {
-          this.server.to(room.id).emit('mask_emotion', {
-            playerId: winner.id,
-            emotion: 'shake',
-          });
+      // Send updated hand to drawer
+      if (drawerPlayer) {
+        const drawerSocket = this.server.sockets.sockets.get(drawerPlayer.socketId);
+        if (drawerSocket) {
+          drawerSocket.emit('hand_dealt', { cards: drawerPlayer.hand });
         }
       }
     }
 
-    // If phase complete
-    if (result.phaseComplete) {
-      this.server.to(room.id).emit('phase_complete', {
-        eliminatedId: result.eliminatedId,
-        standings: [],
-      });
-
-      this.server.to(room.id).emit('player_eliminated', {
-        playerId: result.eliminatedId,
-        placement: room.phaseNumber === 1 ? 4 : room.phaseNumber === 2 ? 3 : 2,
-      });
-
-      // Trigger glitch emotion for eliminated player
-      this.server.to(room.id).emit('mask_emotion', {
-        playerId: result.eliminatedId,
-        emotion: 'crack',
-      });
+    // Player emptied their hand
+    if (result.playerEmptied) {
+      this.server.to(room.id).emit('player_emptied', { playerId: result.drawerId });
     }
 
-    // If game over
-    if (result.gameOver) {
-      const winner = room.players.find(p => !p.isEliminated);
-      
+    // Round over - someone is stuck with The Glitch
+    if (result.roundOver) {
+      this.server.to(room.id).emit('round_over', {
+        loserId: result.loserId,
+        glitchCard: result.glitchCard,
+        standings: result.standings,
+      });
+
       this.server.to(room.id).emit('game_over', {
-        winnerId: winner?.id || '',
-        finalStandings: result.finalStandings || [],
+        finalWinnerId: room.players.find(p => !p.isEliminated)?.id || '',
+        finalStandings: result.standings,
       });
 
-      // Winner celebration
-      if (winner) {
-        this.server.to(room.id).emit('mask_emotion', {
-          playerId: winner.id,
-          emotion: 'pulse',
-        });
-      }
-
-      return { success: true, gameOver: true };
+      console.log(`[GAME OVER] Room ${room.id} - Loser: ${result.loserId}`);
+      return;
     }
 
-    // If phase just started, deal new hands
-    if (result.phaseComplete && !result.gameOver) {
-      // Small delay then deal new hands
-      setTimeout(() => {
-        const updatedRoom = this.gameService.getRoom(room.id);
-        if (updatedRoom) {
-          // Send new hands to remaining players
-          for (const player of updatedRoom.players) {
-            if (!player.isEliminated) {
-              this.server.to(player.socketId).emit('hand_dealt', {
-                cards: player.hand,
-              });
-            }
-          }
-
-          this.server.to(room.id).emit('game_started', { phase: updatedRoom.phase });
-          this.notifyCurrentPlayerTurn(room.id);
-        }
-      }, 2000);
-    } else {
-      // Notify next player
-      this.notifyCurrentPlayerTurn(room.id);
-    }
-
-    return { success: true };
+    // Notify next player
+    this.notifyCurrentPlayerTurn(room.id);
   }
 
   @SubscribeMessage('get_rooms')
   handleGetRooms() {
-    return { rooms: this.gameService.getAllRooms() };
+    return this.gameService.getAllRooms();
   }
 
+  // Notify current player it's their turn
   private notifyCurrentPlayerTurn(roomId: string) {
-    const currentPlayer = this.gameService.getCurrentPlayer(roomId);
-    const validCards = this.gameService.getValidCardsForCurrentPlayer(roomId);
+    const room = this.gameService.getRoom(roomId);
+    if (!room) return;
 
-    if (currentPlayer) {
-      this.server.to(currentPlayer.socketId).emit('your_turn', {
-        validCards,
+    const currentPlayer = this.gameService.getCurrentPlayer(roomId);
+    if (!currentPlayer) return;
+
+    // Skip players who have already emptied their hand
+    if (currentPlayer.hand.length === 0) {
+      this.gameService.advanceToNextPlayer(room);
+      this.notifyCurrentPlayerTurn(roomId);
+      return;
+    }
+
+    const targetPlayer = this.gameService.getDrawTarget(roomId);
+    if (!targetPlayer) return;
+
+    // Skip if target has no cards (shouldn't happen, but safety check)
+    if (targetPlayer.hand.length === 0) {
+      this.gameService.advanceToNextPlayer(room);
+      this.notifyCurrentPlayerTurn(roomId);
+      return;
+    }
+
+    const currentSocket = this.server.sockets.sockets.get(currentPlayer.socketId);
+    if (currentSocket) {
+      currentSocket.emit('your_turn', {
+        targetPlayerId: targetPlayer.id,
+        targetCardCount: targetPlayer.hand.length,
       });
+      console.log(`[TURN] ${currentPlayer.maskType}'s turn to draw from ${targetPlayer.maskType} (${targetPlayer.hand.length} cards)`);
     }
   }
 }

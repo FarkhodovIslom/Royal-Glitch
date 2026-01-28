@@ -299,7 +299,7 @@ function WaitingRoom({ selectedMask }: { selectedMask: MaskType }) {
     const [isReady, setIsReady] = useState(false);
 
     const isCreator = playerId === creatorId;
-    const canStart = players.length === 4;
+    const canStart = players.length >= 2;
 
     const handleReady = () => {
         setReady();
@@ -415,7 +415,7 @@ function WaitingRoom({ selectedMask }: { selectedMask: MaskType }) {
 
                 {/* Player count */}
                 <div className="text-center text-neon-cyan/60 mb-6 font-display tracking-wider">
-                    <span className="text-neon-cyan">{players.length}</span>/4 PLAYERS • NEED 4 TO START
+                    <span className="text-neon-cyan">{players.length}</span>/4 PLAYERS • {players.length >= 2 ? 'READY TO START' : 'NEED 2+ TO START'}
                 </div>
 
                 {/* Action buttons */}
