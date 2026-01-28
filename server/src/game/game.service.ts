@@ -338,17 +338,11 @@ export class GameService {
     };
     room.tricks.push(trick);
 
-    // Give cards to winner
+    // Give cards to winner (damage calculated at end of phase)
     const winner = room.players.find(p => p.id === winnerId);
     if (winner) {
       const trickCards = room.currentTrick.map(pc => pc.card);
       winner.tricksWon.push(trickCards);
-
-      // Calculate and apply damage immediately
-      const damage = calculateTrickDamage(trickCards);
-      if (damage > 0) {
-        winner.integrity = applyDamage(winner.integrity, damage);
-      }
     }
 
     // Build damage record
@@ -401,7 +395,16 @@ export class GameService {
   } {
     const activePlayers = getActivePlayers(room.players);
     
-    // Determine eliminated player
+    // Calculate damage for all players based on cards collected during phase
+    for (const player of activePlayers) {
+      const allCollectedCards = player.tricksWon.flat();
+      const totalDamage = calculateTrickDamage(allCollectedCards);
+      player.integrity = applyDamage(100, totalDamage);
+    }
+
+    console.log(`📊 Phase damage calculated:`, activePlayers.map(p => `${p.id}: ${p.integrity}%`).join(', '));
+    
+    // Determine eliminated player (lowest integrity)
     const eliminated = determineEliminated(activePlayers);
     eliminated.isEliminated = true;
     

@@ -117,6 +117,11 @@ describe('Game Engine', () => {
 
       const tConfig = getPhaseConfig('TRIANGLE');
       expect(tConfig?.cardsPerPlayer).toBe(17);
+
+      const dConfig = getPhaseConfig('DUEL');
+      expect(dConfig).toBeDefined();
+      expect(dConfig?.cardsPerPlayer).toBe(26);
+      expect(dConfig?.playerCount).toBe(2);
     });
 
     it('should advance phase correctly', () => {

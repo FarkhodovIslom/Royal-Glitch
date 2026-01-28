@@ -107,7 +107,7 @@ export const PHASE_CONFIGS: Record<'QUADRANT' | 'TRIANGLE' | 'DUEL', PhaseConfig
   DUEL: {
     phase: 'DUEL',
     playerCount: 2,
-    cardsPerPlayer: 13,
+    cardsPerPlayer: 26,
     removeCards: [],
   },
 };
