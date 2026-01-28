@@ -17,6 +17,7 @@ export default function LobbyPage() {
     const { players, phase } = useGameStore();
 
     const [selectedMask, setSelectedMask] = useState<MaskType>('venetian');
+    const [nickname, setNickname] = useState('');
     const [roomCode, setRoomCode] = useState('');
     const [availableRooms, setAvailableRooms] = useState<{ id: string; playerCount: number }[]>([]);
     const [isLoading, setIsLoading] = useState(false);
@@ -60,9 +61,13 @@ export default function LobbyPage() {
             setError('Not connected to server');
             return;
         }
+        if (!nickname.trim()) {
+            setError('Please enter a nickname');
+            return;
+        }
         setIsLoading(true);
         setError(null);
-        createRoom(selectedMask);
+        createRoom(selectedMask, nickname.trim());
     };
 
     const handleJoinRoom = (id: string) => {
@@ -70,14 +75,22 @@ export default function LobbyPage() {
             setError('Not connected to server');
             return;
         }
+        if (!nickname.trim()) {
+            setError('Please enter a nickname');
+            return;
+        }
         setIsLoading(true);
         setError(null);
-        joinRoom(id, selectedMask);
+        joinRoom(id, selectedMask, nickname.trim());
     };
 
     const handleJoinByCode = () => {
         if (!roomCode.trim()) {
             setError('Please enter a room code');
+            return;
+        }
+        if (!nickname.trim()) {
+            setError('Please enter a nickname');
             return;
         }
         handleJoinRoom(roomCode.toUpperCase());
@@ -178,6 +191,25 @@ export default function LobbyPage() {
                         <h2 className="font-display text-xl text-neon-cyan mb-6 tracking-wider flex items-center gap-2">
                             <span className="text-neon-pink">▸</span> SELECT YOUR MASK
                         </h2>
+
+                        {/* Nickname Input */}
+                        <div className="mb-6">
+                            <label className="text-xs text-neon-cyan/60 font-display mb-2 block tracking-wider">
+                                NICKNAME
+                            </label>
+                            <input
+                                type="text"
+                                placeholder="Enter your nickname..."
+                                value={nickname}
+                                onChange={(e) => setNickname(e.target.value)}
+                                className="w-full px-4 py-2 bg-dark-bg border-2 border-neon-cyan/30 text-neon-cyan font-body placeholder-neon-cyan/30 focus:outline-none focus:border-neon-cyan clip-cyber-sm"
+                                style={{ boxShadow: 'inset 0 0 10px #00FFF011' }}
+                                maxLength={20}
+                            />
+                            <p className="text-xs text-neon-cyan/40 mt-1 font-mono">
+                                {nickname.length}/20 characters
+                            </p>
+                        </div>
 
                         <div className="grid grid-cols-3 gap-4">
                             {MASKS.map((mask, i) => (
@@ -384,6 +416,7 @@ function WaitingRoom({ selectedMask }: { selectedMask: MaskType }) {
                                     <div className="flex flex-col items-center gap-2">
                                         <MaskAvatar
                                             maskType={player.maskType}
+                                            nickname={player.nickname}
                                             size="md"
                                             showName
                                             rating={player.rating}

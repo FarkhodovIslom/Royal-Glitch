@@ -29,7 +29,7 @@ describe('GameService - Pair Annihilation', () => {
 
   describe('createRoom', () => {
     it('should create a room with one player', () => {
-      const room = service.createRoom('player1', 'socket1', 'venetian');
+      const room = service.createRoom('player1', 'socket1', 'venetian', 'Player1');
       
       expect(room).toBeDefined();
       expect(room.id).toBeDefined();
@@ -41,19 +41,19 @@ describe('GameService - Pair Annihilation', () => {
 
   describe('joinRoom', () => {
     it('should allow players to join a waiting room', () => {
-      const room = service.createRoom('player1', 'socket1', 'venetian');
-      const joined = service.joinRoom(room.id, 'player2', 'socket2', 'kabuki');
+      const room = service.createRoom('player1', 'socket1', 'venetian', 'Player1');
+      const joined = service.joinRoom(room.id, 'player2', 'socket2', 'kabuki', 'Player2');
       expect(joined).toBeDefined();
       expect(joined!.players.length).toBe(2);
     });
 
     it('should not allow more than 4 players', () => {
-      const room = service.createRoom('p1', 's1', 'venetian');
-      service.joinRoom(room.id, 'p2', 's2', 'kabuki');
-      service.joinRoom(room.id, 'p3', 's3', 'tribal');
-      service.joinRoom(room.id, 'p4', 's4', 'plague');
+      const room = service.createRoom('p1', 's1', 'venetian', 'P1');
+      service.joinRoom(room.id, 'p2', 's2', 'kabuki', 'P2');
+      service.joinRoom(room.id, 'p3', 's3', 'tribal', 'P3');
+      service.joinRoom(room.id, 'p4', 's4', 'plague', 'P4');
 
-      const fifth = service.joinRoom(room.id, 'p5', 's5', 'jester');
+      const fifth = service.joinRoom(room.id, 'p5', 's5', 'jester', 'P5');
       expect(fifth).toBeNull();
     });
   });
@@ -62,9 +62,9 @@ describe('GameService - Pair Annihilation', () => {
     let roomId: string;
 
     beforeEach(() => {
-      const room = service.createRoom('p1', 's1', 'venetian');
+      const room = service.createRoom('p1', 's1', 'venetian', 'P1');
       roomId = room.id;
-      service.joinRoom(roomId, 'p2', 's2', 'kabuki');
+      service.joinRoom(roomId, 'p2', 's2', 'kabuki', 'P2');
     });
 
     it('should start game with minimum 2 players', () => {
@@ -111,9 +111,9 @@ describe('GameService - Pair Annihilation', () => {
     let roomId: string;
 
     beforeEach(() => {
-      const room = service.createRoom('p1', 's1', 'venetian');
+      const room = service.createRoom('p1', 's1', 'venetian', 'P1');
       roomId = room.id;
-      service.joinRoom(roomId, 'p2', 's2', 'kabuki');
+      service.joinRoom(roomId, 'p2', 's2', 'kabuki', 'P2');
       service.startGame(roomId);
     });
 
@@ -153,8 +153,8 @@ describe('GameService - Pair Annihilation', () => {
 
   describe('getPublicPlayers', () => {
     it('should hide hand details', () => {
-      const room = service.createRoom('p1', 's1', 'venetian');
-      service.joinRoom(room.id, 'p2', 's2', 'kabuki');
+      const room = service.createRoom('p1', 's1', 'venetian', 'P1');
+      service.joinRoom(room.id, 'p2', 's2', 'kabuki', 'P2');
       service.startGame(room.id);
       
       const startedRoom = service.getRoom(room.id)!;
@@ -170,14 +170,14 @@ describe('GameService - Pair Annihilation', () => {
 
   describe('canStartGame', () => {
     it('should return true with 2+ players in WAITING', () => {
-      const room = service.createRoom('p1', 's1', 'venetian');
-      service.joinRoom(room.id, 'p2', 's2', 'kabuki');
+      const room = service.createRoom('p1', 's1', 'venetian', 'P1');
+      service.joinRoom(room.id, 'p2', 's2', 'kabuki', 'P2');
       
       expect(service.canStartGame(room.id)).toBe(true);
     });
 
     it('should return false with only 1 player', () => {
-      const room = service.createRoom('p1', 's1', 'venetian');
+      const room = service.createRoom('p1', 's1', 'venetian', 'P1');
       
       expect(service.canStartGame(room.id)).toBe(false);
     });

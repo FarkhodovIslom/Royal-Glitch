@@ -41,9 +41,10 @@ export function PlayerInfo({ player, position, emotion = 'idle', isMe = false }:
             {/* Small mask avatar */}
             <MaskAvatar
                 maskType={player.maskType}
+                nickname={player.nickname}
                 emotion={emotion}
-                size="sm"
-                isEliminated={player.isEliminated}
+                size="md"
+                showName
                 rating={player.rating}
             />
 

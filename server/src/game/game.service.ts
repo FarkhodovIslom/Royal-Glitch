@@ -42,14 +42,23 @@ export class GameService {
     return Math.random().toString(36).substring(2, 8).toUpperCase();
   }
 
+  // Sanitize nickname
+  private sanitizeNickname(nickname: string): string {
+    // Trim whitespace and limit to 20 characters
+    const sanitized = nickname.trim().slice(0, 20);
+    // Return sanitized or default to 'Player'
+    return sanitized || 'Player';
+  }
+
   // Create a new game room
-  createRoom(playerId: string, socketId: string, maskType: MaskType): GameRoom {
+  createRoom(playerId: string, socketId: string, maskType: MaskType, nickname: string): GameRoom {
     const roomId = this.generateRoomId();
     
     const player: Player = {
       id: playerId,
       socketId,
       maskType,
+      nickname: this.sanitizeNickname(nickname),
       hand: [],
       isEliminated: false,
       isReady: false,
@@ -75,7 +84,7 @@ export class GameService {
   }
 
   // Join an existing room
-  joinRoom(roomId: string, playerId: string, socketId: string, maskType: MaskType): GameRoom | null {
+  joinRoom(roomId: string, playerId: string, socketId: string, maskType: MaskType, nickname: string): GameRoom | null {
     const room = this.rooms.get(roomId);
     
     if (!room) return null;
@@ -87,6 +96,7 @@ export class GameService {
       id: playerId,
       socketId,
       maskType,
+      nickname: this.sanitizeNickname(nickname),
       hand: [],
       isEliminated: false,
       isReady: false,
@@ -439,6 +449,7 @@ export class GameService {
     return room.players.map(p => ({
       id: p.id,
       maskType: p.maskType,
+      nickname: p.nickname,
       isEliminated: p.isEliminated,
       isReady: p.isReady,
       rating: p.rating,

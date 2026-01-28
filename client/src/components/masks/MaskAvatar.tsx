@@ -6,6 +6,7 @@ import { MaskType, MaskEmotion, MASK_NAMES } from '@/lib/types';
 
 interface MaskAvatarProps {
     maskType: MaskType;
+    nickname?: string;
     emotion?: MaskEmotion;
     size?: 'sm' | 'md' | 'lg';
     isEliminated?: boolean;
@@ -77,6 +78,7 @@ const emotionAnimations: Record<MaskEmotion, any> = {
 
 export function MaskAvatar({
     maskType,
+    nickname,
     emotion = 'idle',
     size = 'md',
     isEliminated = false,
@@ -174,7 +176,7 @@ export function MaskAvatar({
                     'text-xs font-display tracking-wider',
                     isEliminated ? 'text-glitch-red/60' : 'text-neon-cyan/80'
                 )}>
-                    {MASK_NAMES[maskType].toUpperCase()}
+                    {nickname ? nickname.toUpperCase() : MASK_NAMES[maskType].toUpperCase()}
                 </span>
             )}
 

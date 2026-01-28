@@ -33,6 +33,7 @@ export interface Player {
   id: string;
   socketId: string;
   maskType: MaskType;
+  nickname: string;
   hand: Card[];
   isEliminated: boolean; // Lost the round (held Glitch)
   isReady: boolean;
@@ -81,8 +82,8 @@ export const MIN_RATING = 0;
 
 // Socket Events - Client to Server
 export interface ClientToServerEvents {
-  create_room: (data: { maskType: MaskType }) => void;
-  join_room: (data: { roomId: string; maskType: MaskType }) => void;
+  create_room: (data: { maskType: MaskType; nickname: string }) => void;
+  join_room: (data: { roomId: string; maskType: MaskType; nickname: string }) => void;
   leave_room: (data: { roomId: string }) => void;
   player_ready: (data: { roomId: string }) => void;
   start_game: (data: { roomId: string }) => void;
@@ -142,6 +143,7 @@ export interface ServerToClientEvents {
 export interface PublicPlayer {
   id: string;
   maskType: MaskType;
+  nickname: string;
   isEliminated: boolean;
   isReady: boolean;
   rating: number;

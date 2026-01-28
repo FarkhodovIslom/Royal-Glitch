@@ -38,9 +38,9 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage('create_room')
   handleCreateRoom(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { playerId: string; maskType: MaskType },
+    @MessageBody() data: { playerId: string; maskType: MaskType; nickname: string },
   ) {
-    const room = this.gameService.createRoom(data.playerId, client.id, data.maskType);
+    const room = this.gameService.createRoom(data.playerId, client.id, data.maskType, data.nickname);
     client.join(room.id);
     client.emit('room_created', { roomId: room.id });
     
@@ -58,9 +58,9 @@ export class GameGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage('join_room')
   handleJoinRoom(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { roomId: string; playerId: string; maskType: MaskType },
+    @MessageBody() data: { roomId: string; playerId: string; maskType: MaskType; nickname: string },
   ) {
-    const room = this.gameService.joinRoom(data.roomId, data.playerId, client.id, data.maskType);
+    const room = this.gameService.joinRoom(data.roomId, data.playerId, client.id, data.maskType, data.nickname);
     
     if (!room) {
       client.emit('error', { message: 'Could not join room' });

@@ -28,6 +28,7 @@ export type Phase = 'WAITING' | 'PLAYING' | 'GAME_OVER';
 export interface PublicPlayer {
   id: string;
   maskType: MaskType;
+  nickname: string;
   // integrity: number; // Removed in Pair Annihilation
   isEliminated: boolean;
   isReady: boolean;

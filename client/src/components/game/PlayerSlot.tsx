@@ -101,8 +101,10 @@ export function PlayerSlot({
                 <div className="flex flex-col items-center gap-3 relative z-10">
                     <MaskAvatar
                         maskType={player.maskType}
+                        nickname={player.nickname}
                         emotion={emotion}
                         size="md"
+                        showName
                         isEliminated={player.isEliminated}
                         rating={player.rating}
                     />

@@ -274,7 +274,7 @@ export default function GamePage() {
                                                         {isWinner ? '👑' : `#${standing.placement}`}
                                                     </span>
                                                     <span className="text-white font-display tracking-wider">
-                                                        {player?.maskType?.toUpperCase() || 'UNKNOWN'}
+                                                        {player?.nickname?.toUpperCase() || player?.maskType?.toUpperCase() || 'UNKNOWN'}
                                                     </span>
                                                 </div>
                                                 <div className="text-right font-mono">

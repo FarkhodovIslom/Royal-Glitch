@@ -142,6 +142,11 @@ export function useSocket() {
       });
 
       socket.on('game_over', ({ finalWinnerId, finalStandings }: { finalWinnerId: string; finalStandings: PlayerStanding[] }) => {
+        // Guard: Only process if game is not already over
+        if (useGameStore.getState().isGameOver) {
+          console.log('Game already over, ignoring duplicate game_over event');
+          return;
+        }
         console.log('Game over! Winner:', finalWinnerId);
         useGameStore.getState().setGameOver(finalWinnerId, finalStandings);
       });
@@ -173,20 +178,22 @@ export function useSocket() {
     useGameStore.getState().reset();
   }, []);
 
-  const createRoom = useCallback((maskType: string) => {
+  const createRoom = useCallback((maskType: string, nickname: string) => {
     const socket = getSocket();
     socket.emit('create_room', { 
         playerId: useGameStore.getState().playerId, 
-        maskType 
+        maskType,
+        nickname
     });
   }, []);
 
-  const joinRoom = useCallback((roomId: string, maskType: string) => {
+  const joinRoom = useCallback((roomId: string, maskType: string, nickname: string) => {
     const socket = getSocket();
     socket.emit('join_room', { 
         roomId, 
         playerId: useGameStore.getState().playerId, 
-        maskType 
+        maskType,
+        nickname
     });
   }, []);
 
